@@ -63,11 +63,11 @@ Tap **Save & Connect** — the board will reconnect and the status screen will p
 
 ```
 ┌───────┬─────────────────────────────────────────────────┐
-│  [B]  │  MyModel.3mf                      [RUNNING]    │
-│       │  ████████████████░░░░░░░░░░  72%               │
-│  [📋] │ ─────────────────────────────────────────────── │
+│  [B]  │  MyModel.3mf                       [RUNNING]    │
+│       │  ████████████████░░░░░░░░░░  72%                │
+│ [📋]  │ ─────────────────────────────────────────────── │
 │       │ ┌────────┐   🌡 Nozzle   220°C / 220°C          │
-│  [⚙] │ │        │   🏠 Bed       55°C /  55°C          │
+│  [⚙]  │ │        │   🏠 Bed       55°C /  55°C          │
 │       │ │ THUMB  │   🔄 Chamber   32°C                  │
 │ [WiFi]│ │        │                                      │
 │       │ └────────┘   📋 Layers   72 / 100               │
@@ -139,8 +139,3 @@ BambuTagger-Console/
 | PubSubClient | ^2.8 | MQTT client |
 | ArduinoJson | ^7.0.4 | JSON parsing |
 
----
-
-## License
-
-MIT — free to use, modify, and share.
