@@ -1,6 +1,12 @@
-# 🖨️ BambuTagger-Console
+# <img alt="logo" src="Logo/bambutagger.png" height="36" /> BambuTagger-Console
 
 A touchscreen printer dashboard for **Bambu Lab** 3D printers running on the **Sunton ESP32-8048S043** development board (ESP32-S3, 800×480 RGB display).
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G8M220JASY)
+
+<p align="center">
+<img src="Pics/main.jpg" />
+</p>
 
 ---
 
