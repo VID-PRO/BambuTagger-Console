@@ -1,6 +1,6 @@
-# 🖨️ BambuTagger-Console — ESP32-8048S043
+# 🖨️ BambuTagger-Console
 
-A touchscreen printer dashboard for **Bambu Lab X1C / X1E / P1S / P1P / A1** series printers running on the **Sunton ESP32-8048S043** development board (ESP32-S3, 800×480 RGB display).
+A touchscreen printer dashboard for **Bambu Lab** 3D printers running on the **Sunton ESP32-8048S043** development board (ESP32-S3, 800×480 RGB display).
 
 ---
 
