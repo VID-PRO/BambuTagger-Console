@@ -11,6 +11,7 @@
                 "/Users/bloehdbj/Documents/BambuTagger-Console/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
+                "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
@@ -245,7 +246,6 @@
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                 "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                 ""
             ],
@@ -255,6 +255,7 @@
                     "/Users/bloehdbj/Documents/BambuTagger-Console/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WebServer/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/FS/src",
+                    "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/HTTPClient/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WiFiClientSecure/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Preferences/src",
@@ -489,7 +490,6 @@
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/SimpleBLE/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Ticker/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/USB/src",
-                    "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/Update/src",
                     "/Users/bloehdbj/.platformio/packages/framework-arduinoespressif32/libraries/WiFiProv/src",
                     ""
                 ]
@@ -521,7 +521,7 @@
                 "ARDUINO=10812",
                 "ARDUINO_VARIANT=\"esp32s3\"",
                 "ARDUINO_BOARD=\"Espressif ESP32-S3-DevKitC-1-N8 (8 MB QD, No PSRAM)\"",
-                "ARDUINO_PARTITION_huge_app",
+                "ARDUINO_PARTITION_huge_app_ota",
                 ""
             ],
             "cStandard": "gnu99",

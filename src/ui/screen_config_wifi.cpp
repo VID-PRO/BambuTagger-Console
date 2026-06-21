@@ -44,6 +44,20 @@ void ScreenConfigWiFi::create(lv_obj_t *parent) {
     lv_obj_set_style_text_color(_lbl_status, lv_color_hex(0x6C757D), 0);
     lv_label_set_text(_lbl_status, "");
 
+    // ── Firmware Upgrade button ──────────────────────────────
+    _btn_upgrade = lv_btn_create(scroll);
+    lv_obj_set_width(_btn_upgrade, lv_pct(100));
+    lv_obj_set_height(_btn_upgrade, 44);
+    lv_obj_set_style_bg_color(_btn_upgrade, lv_color_hex(0x1DB954), 0);
+    lv_obj_set_style_radius(_btn_upgrade, 8, 0);
+    lv_obj_add_event_cb(_btn_upgrade, _upgrade_event_cb, LV_EVENT_CLICKED, this);
+
+    lv_obj_t *up_lbl = lv_label_create(_btn_upgrade);
+    lv_label_set_text(up_lbl, LV_SYMBOL_UPLOAD "  Firmware Upgrade");
+    lv_obj_set_style_text_font(up_lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(up_lbl, lv_color_hex(0xFFFFFF), 0);
+    lv_obj_center(up_lbl);
+
     // ── Keyboard (hidden by default) ─────────────────────────
     _kb = lv_keyboard_create(_root);
     lv_obj_set_size(_kb, LCD_WIDTH - SIDEBAR_W, 200);
@@ -150,6 +164,21 @@ void ScreenConfigWiFi::_cal_event_cb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
     if (self->_cal_cb) self->_cal_cb();
+}
+
+// ── Event: firmware upgrade button ────────────────────────────
+void ScreenConfigWiFi::_upgrade_event_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
+    if (self->_upgrade_cb) self->_upgrade_cb();
+}
+
+// ── Update status label from any context (call with LV_LOCK) ──
+void ScreenConfigWiFi::setStatusText(const char *text, lv_color_t color) {
+    if (_lbl_status) {
+        lv_label_set_text(_lbl_status, text);
+        lv_obj_set_style_text_color(_lbl_status, color, 0);
+    }
 }
 
 // ── Event: next button ────────────────────────────────────────

@@ -27,6 +27,7 @@
 #include "bambu/bambu_client.h"
 #include "bambu/ftps_client.h"
 #include "ui/ui_manager.h"
+#include "ota_update.h"
 
 // ── Global LCD instance (declared extern in display_driver.h) ─
 LGFX lcd;
@@ -58,7 +59,7 @@ static char g_bam_serial[32] = DEFAULT_BAMBU_SERIAL;
 static char g_bam_code[16]   = DEFAULT_BAMBU_CODE;
 
 // ── LVGL mutex (guards lv_* calls from multiple cores) ────────
-static SemaphoreHandle_t g_lv_mutex = nullptr;
+SemaphoreHandle_t g_lv_mutex = nullptr;
 
 #define LV_LOCK()   xSemaphoreTake(g_lv_mutex, portMAX_DELAY)
 #define LV_UNLOCK() xSemaphoreGive(g_lv_mutex)
@@ -352,6 +353,12 @@ void setup() {
     // Wire calibrate button from WiFi config screen
     g_ui.onCalibrateWiFi([]() { g_run_calibration = true; });
 
+    // Wire firmware upgrade button from WiFi config screen
+    g_ui.onUpgradeWiFi([]() {
+        xTaskCreatePinnedToCore(ota_task, "ota_update", 32768,
+                                &g_ui.configWifiScreen(), 1, nullptr, 1);
+    });
+
     // Wire config "save & connect" button from printer config screen
     g_ui.onSaveConnectPrinter([]() {
         // Read new values from NVS (already written by screen_config_printer)
@@ -425,4 +432,67 @@ void loop() {
 
     wifi_portal_loop();  // STA-mode config server (no-op if not started)
     delay(5);
+}
+
+// ─────────────────────────────────────────────────────────────
+// OTA display overlay — shows progress on-screen when firmware
+// update is triggered from the web UI (/update endpoint)
+// ─────────────────────────────────────────────────────────────
+static lv_obj_t *_ota_overlay     = nullptr;
+static lv_obj_t *_ota_bar         = nullptr;
+static lv_obj_t *_ota_msg         = nullptr;
+
+void ota_display_begin() {
+    LV_LOCK();
+    if (!_ota_overlay) {
+        _ota_overlay = lv_obj_create(lv_scr_act());
+        lv_obj_set_size(_ota_overlay, LCD_WIDTH, LCD_HEIGHT);
+        lv_obj_set_style_bg_color(_ota_overlay, lv_color_hex(0x1A1A2E), 0);
+        lv_obj_set_style_border_width(_ota_overlay, 0, 0);
+        lv_obj_clear_flag(_ota_overlay, LV_OBJ_FLAG_SCROLLABLE);
+        lv_obj_move_foreground(_ota_overlay);
+
+        lv_obj_t *title = lv_label_create(_ota_overlay);
+        lv_label_set_text(title, "Firmware Update");
+        lv_obj_set_style_text_font(title, &lv_font_montserrat_28, 0);
+        lv_obj_set_style_text_color(title, lv_color_hex(0x1DB954), 0);
+        lv_obj_align(title, LV_ALIGN_CENTER, 0, -80);
+
+        _ota_bar = lv_bar_create(_ota_overlay);
+        lv_obj_set_size(_ota_bar, 400, 24);
+        lv_obj_align(_ota_bar, LV_ALIGN_CENTER, 0, -20);
+        lv_bar_set_range(_ota_bar, 0, 100);
+        lv_bar_set_value(_ota_bar, 0, LV_ANIM_OFF);
+        lv_obj_set_style_bg_color(_ota_bar, lv_color_hex(0x0F3460), 0);
+        lv_obj_set_style_border_color(_ota_bar, lv_color_hex(0x2D3561), 0);
+        lv_obj_set_style_border_width(_ota_bar, 1, 0);
+        lv_obj_set_style_radius(_ota_bar, 10, 0);
+        lv_obj_set_style_pad_all(_ota_bar, 0, 0);
+
+        _ota_msg = lv_label_create(_ota_overlay);
+        lv_label_set_text(_ota_msg, "Receiving firmware…");
+        lv_obj_set_style_text_font(_ota_msg, &lv_font_montserrat_24, 0);
+        lv_obj_set_style_text_color(_ota_msg, lv_color_hex(0x90CAF9), 0);
+        lv_obj_align(_ota_msg, LV_ALIGN_CENTER, 0, 24);
+    } else {
+        lv_obj_clear_flag(_ota_overlay, LV_OBJ_FLAG_HIDDEN);
+        lv_bar_set_value(_ota_bar, 0, LV_ANIM_OFF);
+        lv_label_set_text(_ota_msg, "Receiving firmware…");
+    }
+    LV_UNLOCK();
+}
+
+void ota_display_progress(int percent, const char *msg) {
+    LV_LOCK();
+    if (_ota_bar)  lv_bar_set_value(_ota_bar, percent, LV_ANIM_ON);
+    if (_ota_msg)  lv_label_set_text(_ota_msg, msg);
+    LV_UNLOCK();
+}
+
+void ota_display_end() {
+    LV_LOCK();
+    if (_ota_overlay) {
+        lv_obj_add_flag(_ota_overlay, LV_OBJ_FLAG_HIDDEN);
+    }
+    LV_UNLOCK();
 }

@@ -14,7 +14,13 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <Preferences.h>
+#include <Update.h>
 #include <Arduino.h>
+
+// Forward-declared in main.cpp — show OTA progress on the display
+void ota_display_begin();
+void ota_display_progress(int percent, const char *msg);
+void ota_display_end();
 
 #define PORTAL_AP_SSID  "BambuTagger-Console"
 #define PORTAL_AP_IP    "192.168.4.1"
@@ -77,6 +83,11 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
 
     <button type="submit">Save &amp; Reboot</button>
   </form>
+  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1e3a5f;text-align:center">
+    <a href="/update" style="color:#90caf9;font-size:.85em;text-decoration:none"
+       onmouseover="this.style.textDecoration='underline'"
+       onmouseout="this.style.textDecoration='none'">&#9654; Firmware Update</a>
+  </div>
 </div>
 </body>
 </html>
@@ -103,6 +114,138 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
   <h1>&#10003; Saved!</h1>
   <p>Settings stored. Device is rebooting&hellip;</p>
   <p style="margin-top:12px;font-size:.85em">You can reconnect after a few seconds.</p>
+</div>
+</body>
+</html>
+)html";
+
+// ─────────────────────────────────────────────────────────────
+// Firmware update page (upload .bin)
+// ─────────────────────────────────────────────────────────────
+static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BambuTagger-Console — Update</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:440px;
+        box-shadow:0 4px 24px rgba(0,0,0,.5)}
+  h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
+  .sub{color:#8899aa;font-size:.85em;margin-bottom:22px}
+  h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
+     margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
+  label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
+  input[type=file]{display:block;width:100%;padding:12px;margin-bottom:12px;
+        background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
+        font-size:.9em;outline:none}
+  input[type=file]::file-selector-button{background:#1db954;color:#fff;border:none;
+        padding:6px 14px;border-radius:4px;cursor:pointer;margin-right:10px}
+  button{display:block;width:100%;padding:13px;margin-top:6px;
+         background:#1db954;color:#fff;border:none;border-radius:8px;
+         font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
+  button:hover{background:#17a845}
+  button:disabled{background:#555;cursor:not-allowed}
+  .back-link{display:inline-block;margin-top:16px;color:#90caf9;font-size:.85em;text-decoration:none}
+  .back-link:hover{text-decoration:underline}
+  #progress-wrap{display:none;margin-top:14px}
+  #progress-bar{border-radius:10px;height:20px;background:#0f3460;overflow:hidden}
+  #progress-fill{height:100%;width:0;background:#1db954;border-radius:10px;transition:width .3s;text-align:center;font-size:.7em;line-height:20px;color:#fff}
+  #up-status{display:none;margin-top:12px;color:#8899aa;font-size:.85em;text-align:center}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Firmware Update</h1>
+  <p class="sub">Upload a firmware (<code>.bin</code>) file</p>
+  <form id="up-form" method="post" action="/update" enctype="multipart/form-data">
+    <label>Firmware Binary</label>
+    <input id="up-file" type="file" name="firmware" accept=".bin" required>
+    <button id="up-btn" type="submit">Upload &amp; Update</button>
+  </form>
+  <div id="progress-wrap">
+    <div id="progress-bar"><div id="progress-fill">0%</div></div>
+  </div>
+  <div id="up-status"></div>
+  <a class="back-link" href="/">&larr; Back to Configuration</a>
+</div>
+<script>
+(function(){
+  var form=document.getElementById('up-form'),
+      inp=document.getElementById('up-file'),
+      btn=document.getElementById('up-btn'),
+      pw=document.getElementById('progress-wrap'),
+      pf=document.getElementById('progress-fill'),
+      st=document.getElementById('up-status');
+  form.onsubmit=function(e){
+    e.preventDefault();
+    if(!inp.files.length)return;
+    btn.disabled=true; btn.textContent='Uploading…';
+    pw.style.display='block'; st.style.display='block';
+    st.textContent='Uploading firmware …';
+    var x=new XMLHttpRequest();
+    x.upload.addEventListener('progress',function(e){
+      if(e.lengthComputable){var p=Math.round(e.loaded/e.total*100);pf.style.width=p+'%';pf.textContent=p+'%'}
+    });
+    x.addEventListener('load',function(){st.innerHTML=x.responseText;pf.style.width='100%';pf.textContent='100%'});
+    x.addEventListener('error',function(){st.textContent='Upload failed';btn.disabled=false;btn.textContent='Upload & Update'});
+    var fd=new FormData(form);x.open('POST','/update',true);x.send(fd);
+  };
+})();
+</script>
+</div>
+</body>
+</html>
+)html";
+
+static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BambuTagger-Console — Update</title>
+<style>
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+  .card{background:#16213e;border-radius:12px;padding:40px 32px}
+  h1{color:#1db954;font-size:2em;margin-bottom:10px}
+  p{color:#8899aa}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>&#10003; Update Complete!</h1>
+  <p>Firmware flashed successfully. Rebooting&hellip;</p>
+</div>
+</body>
+</html>
+)html";
+
+static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BambuTagger-Console — Update</title>
+<style>
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
+       min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+  .card{background:#16213e;border-radius:12px;padding:40px 32px}
+  h1{color:#e74c3c;font-size:1.6em;margin-bottom:10px}
+  p{color:#8899aa}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>&#10007; Update Failed</h1>
+  <p>%%MSG%%</p>
+  <p style="margin-top:12px;font-size:.85em">Please try again or flash via serial.</p>
 </div>
 </body>
 </html>
@@ -166,12 +309,73 @@ static void _portal_handle_save() {
     ESP.restart();
 }
 
+// ── Firmware update handlers ─────────────────────────────────
+
+static bool _update_ok = false;
+
+static void _portal_handle_update_page() {
+    _portal_server.send(200, "text/html; charset=utf-8", FPSTR(_UPDATE_PAGE_HTML));
+}
+
+static void _portal_handle_update_upload() {
+    HTTPUpload &upload = _portal_server.upload();
+    if (upload.status == UPLOAD_FILE_START) {
+        log_i("Update: receiving %s", upload.filename.c_str());
+        _update_ok = false;
+        ota_display_begin();
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+            log_e("Update.begin failed");
+        }
+    } else if (upload.status == UPLOAD_FILE_WRITE) {
+        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
+            log_e("Update.write failed at offset %u", upload.totalSize);
+        }
+        // Estimate progress against max ~2 MB firmware
+        int pct = (upload.totalSize * 100) / 0x200000;
+        if (pct > 99) pct = 99;
+        char msg[48];
+        snprintf(msg, sizeof(msg), "Receiving… %d KB", upload.totalSize / 1024);
+        ota_display_progress(pct, msg);
+    } else if (upload.status == UPLOAD_FILE_END) {
+        _update_ok = Update.end(true);
+        if (_update_ok) {
+            log_i("Update success (%u bytes)", upload.totalSize);
+            ota_display_progress(100, "Update complete! Rebooting…");
+        } else {
+            log_e("Update failed: %s", Update.errorString());
+            ota_display_end();
+        }
+    } else if (upload.status == UPLOAD_FILE_ABORTED) {
+        Update.end(false);
+        _update_ok = false;
+        ota_display_end();
+        log_w("Update aborted");
+    }
+}
+
 static void _portal_register_routes() {
     _portal_server.on("/", HTTP_GET, []() {
         String page = _portal_build_page();
         _portal_server.send(200, "text/html; charset=utf-8", page);
     });
     _portal_server.on("/save", HTTP_POST, _portal_handle_save);
+    _portal_server.on("/update", HTTP_GET, _portal_handle_update_page);
+    _portal_server.on("/update", HTTP_POST,
+        []() {
+            if (_update_ok) {
+                _portal_server.send_P(200, "text/html; charset=utf-8", _UPDATE_OK_HTML);
+                _portal_server.client().flush();
+                delay(1000);
+                ESP.restart();
+            } else {
+                String msg = Update.hasError() ? String(Update.errorString()) : "Unknown error";
+                String html = FPSTR(_UPDATE_FAIL_HTML);
+                html.replace("%%MSG%%", msg);
+                _portal_server.send(200, "text/html; charset=utf-8", html);
+            }
+        },
+        _portal_handle_update_upload
+    );
     // Captive-portal catch-all (Android / iOS auto-redirect)
     _portal_server.onNotFound([]() {
         _portal_server.sendHeader("Location", "http://192.168.4.1/", true);

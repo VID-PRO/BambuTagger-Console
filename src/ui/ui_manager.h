@@ -44,6 +44,11 @@ public:
         _screen_config_wifi.onCalibrate(cb);
     }
 
+    /** Wire up the firmware upgrade callback for WiFi config screen. */
+    void onUpgradeWiFi(std::function<void()> cb) {
+        _screen_config_wifi.onUpgrade(cb);
+    }
+
     /** Wire up the save & connect callback for printer config screen. */
     void onSaveConnectPrinter(std::function<void()> cb) {
         _screen_config_printer.onSaveConnect(cb);
