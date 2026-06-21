@@ -87,7 +87,7 @@ void ScreenOverview::_buildLayout() {
     int thumb_h = thumb_w;
 
     // Thumbnail y: centred vertically between job-name bottom (~56) and progress-bar top (ch-18)
-    int thumb_y = 56 + ((ch - 18 - 56) - thumb_h) / 2;
+    int thumb_y = 56 + ((ch - 18 - 56) - thumb_h) / 2 - 8;
 
     for (int i = 0; i < _num_printers; i++) {
         int col = i % cols;
@@ -174,7 +174,7 @@ void ScreenOverview::_buildLayout() {
             lv_obj_set_style_text_font(_cards[i].lbl_remain, &lv_font_montserrat_20, 0);
             lv_obj_set_style_text_color(_cards[i].lbl_remain, COL_GREY, 0);
             lv_obj_set_pos(_cards[i].lbl_remain, info_x, thumb_y + 90);
-            lv_label_set_text(_cards[i].lbl_remain, "");
+            lv_label_set_text(_cards[i].lbl_remain, LV_SYMBOL_NEXT " 0m");
 
             // ── Progress bar (bottom) ─────────────────────────
             _cards[i].bar_prog = lv_bar_create(_cards[i].root);
