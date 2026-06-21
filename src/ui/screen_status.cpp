@@ -143,9 +143,9 @@ void ScreenStatus::create(lv_obj_t *parent) {
         lv_label_set_long_mode(lbl, LV_LABEL_LONG_CLIP);
     };
 
-    makeInfoLabel(_lbl_nozzle,  0,   LV_SYMBOL_WARNING " Nozzle   --°C / --°C");
-    makeInfoLabel(_lbl_bed,     32,  LV_SYMBOL_HOME    " Bed      --°C / --°C");
-    makeInfoLabel(_lbl_chamber, 64,  LV_SYMBOL_LOOP    " Chamber  --°C");
+    makeInfoLabel(_lbl_nozzle,  0,   LV_SYMBOL_DOWNLOAD " Nozzle   --°C / --°C");
+    makeInfoLabel(_lbl_bed,     32,  LV_SYMBOL_UPLOAD   " Bed      --°C / --°C");
+    makeInfoLabel(_lbl_chamber, 64,  LV_SYMBOL_HOME     " Chamber  --°C");
 
     // Divider
     lv_obj_t *div2 = lv_obj_create(_root);
@@ -155,7 +155,7 @@ void ScreenStatus::create(lv_obj_t *parent) {
     lv_obj_set_style_border_width(div2, 0, 0);
 
     makeInfoLabel(_lbl_layer, 116,  LV_SYMBOL_LIST     " Layers    -- / --");
-    makeInfoLabel(_lbl_time,  148,  LV_SYMBOL_REFRESH  " Remaining  --h --m");
+    makeInfoLabel(_lbl_time,  148,  LV_SYMBOL_NEXT     " Remaining  --h --m");
     makeInfoLabel(_lbl_speed, 180,  LV_SYMBOL_PLAY     " Speed     100%");
 
     // ── Control bar (bottom of screen) ───────────────────────
@@ -221,9 +221,9 @@ void ScreenStatus::_applyBadgeStyle(PrintState state) {
     switch (state) {
         case PrintState::RUNNING:
         case PrintState::PREPARE: lv_obj_add_style(_lbl_state, &_style_badge_run,   0); break;
-        case PrintState::PAUSE:                    lv_obj_add_style(_lbl_state, &_style_badge_pause, 0); break;
-        case PrintState::FAILED:                   lv_obj_add_style(_lbl_state, &_style_badge_fail,  0); break;
-        default:                                   lv_obj_add_style(_lbl_state, &_style_badge_idle,  0); break;
+        case PrintState::PAUSE:   lv_obj_add_style(_lbl_state, &_style_badge_pause, 0); break;
+        case PrintState::FAILED:  lv_obj_add_style(_lbl_state, &_style_badge_fail,  0); break;
+        default:                  lv_obj_add_style(_lbl_state, &_style_badge_idle,  0); break;
     }
 }
 
@@ -250,15 +250,15 @@ void ScreenStatus::update(const PrinterStatus &s) {
 
     // Temperatures
     char tmp[48];
-    snprintf(tmp, sizeof(tmp), LV_SYMBOL_WARNING " Nozzle   %.0f°C / %.0f°C",
+    snprintf(tmp, sizeof(tmp), LV_SYMBOL_DOWNLOAD" Nozzle   %.0f°C / %.0f°C",
              s.temp_nozzle, s.temp_nozzle_t);
     lv_label_set_text(_lbl_nozzle, tmp);
 
-    snprintf(tmp, sizeof(tmp), LV_SYMBOL_HOME " Bed      %.0f°C / %.0f°C",
+    snprintf(tmp, sizeof(tmp), LV_SYMBOL_UPLOAD " Bed      %.0f°C / %.0f°C",
              s.temp_bed, s.temp_bed_t);
     lv_label_set_text(_lbl_bed, tmp);
 
-    snprintf(tmp, sizeof(tmp), LV_SYMBOL_LOOP " Chamber  %.0f°C", s.temp_chamber);
+    snprintf(tmp, sizeof(tmp), LV_SYMBOL_HOME " Chamber  %.0f°C", s.temp_chamber);
     lv_label_set_text(_lbl_chamber, tmp);
 
     // Layers
@@ -270,9 +270,9 @@ void ScreenStatus::update(const PrinterStatus &s) {
     uint16_t h = s.remaining_min / 60;
     uint16_t m = s.remaining_min % 60;
     if (h > 0)
-        snprintf(tmp, sizeof(tmp), LV_SYMBOL_REFRESH " Remaining  %uh %02um", h, m);
+        snprintf(tmp, sizeof(tmp), LV_SYMBOL_NEXT " Remaining  %uh %02um", h, m);
     else
-        snprintf(tmp, sizeof(tmp), LV_SYMBOL_REFRESH " Remaining  %um", m);
+        snprintf(tmp, sizeof(tmp), LV_SYMBOL_NEXT " Remaining  %um", m);
     lv_label_set_text(_lbl_time, tmp);
 
     // Speed

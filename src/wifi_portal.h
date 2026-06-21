@@ -54,16 +54,16 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
 </head>
 <body>
 <div class="card">
-  <h1>&#128225; BambuTagger-Console</h1>
+  <h1><img style="vertical-align:middle;" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAA51BMVEVMaXF8wXEAAAB5vW5jrFt7wHB8wnF+1nd6vm96vm9oo15bkVN0tWlqpmB6v28gMx1Ld0MrVDBDazximllvrWRknVtVhU5bkFJ1t2tbkFNXjFB4u21nol13uWxxsWdqpmB4u21sqmNnol1xsGdxsWc2VzBwsGZglVdqpmBXik5tq2NUhEpppF9elVVurGRztGhvrWRjm1pjnFtztGlysmd4u21sqWI3XDNwsGZysmhppF92uWt0tGlknFpZjlFbkVN40nh9wnJ+xXOByHV7wHCByXaDy3eCyneDzXiAx3SJ1HyH0XqN3IFujF/lAAAAQXRSTlMA+gH5Afz9Av77gDjWe/kHHAQUZ7lXJ0HzPSH8bO3RivOeXqW3DchEkTKFLXRIseLDTV7KwOeWIZKup93rlnpTCMyoTDkAAAAJcEhZcwAALiMAAC4jAXilP3YAAALRSURBVHicZZPncuM4EISbAYGkGCRROeccncMGggAoSn7/59mSfL711fW/wXw1NYPqBj5lMwBRrfzzZ3nzBICZ+I8YQ6kc17nSWsn6dB1dX773EfrvqaLEIMQIZJrV3Qm+EQxeV4uAplpwLrWigTh1vb8EQ8VSAdXWflmZ1Q5+XM+olVrDL4KhQhMrtearr8Uit68sKsqfBEPDSixdWMD+Gmmjep8FNJhdCRulQmpl4wnsoudu7+/HvVoIhKMsyN8i2GBY6iC7nwCzPTmfPz7O52R6AIovmaWfryOaHZk8NGG6/Gx0B6476Brn5DFEqZDLfhWAnwWiDCxPadwoXjcIa3F+GQCVJMiWgHmXi0IIbHXPBMIoCgG4agqY97dOs0+UjyJKtSJK7t37e7cXoTgroYh2Lq0FDlLyBhhjNqqFy1mI83m3uNYM1RYVQ6zzpH7Fr+d8dNzVqv32cVu+aE52ycmFq0T3V6Gw7zXQnC9QORab8yYavX1hV47TbH4DjjpVmsdVYHC5xCaqMdcqvbTHKpvDT5P3RV86Dj11GsUHGhglr3OijsOtzVToHiqJbD29aEdyK32ovpwvd09vmSUlT++e6lS1sbJIOlxxyqV0TqPo9TVanhwpOUkPNUHkBmFBqDF8TR3Ok04ETN4E545xesRAyU4JeNak5cF3dMIJ3wCrFiGJlj1U+1KNAHgWSccmvG09yUUFqMk8qcczYKQcubn+z0gH+RrMjGplawQ8y3YtMhnaIsjGN0NVHxJCKmBgOIiXgRqC2QwVh9DgZlyGoSCUuCbYbxyFXuM3s9EmNEjXX6b0U8NQU8+0gWkBsE0vFjQ4Pf61tZ8LSzlTd/ar0zp6/p4oR6i5af9jc5Nh2NGGkWtJkyThWRoYul/+nk+G5pbrxDACxwkMIrSzrYL9G4MbgcZgx3OdZTpv7R69/+X7GuZJo/zj9fXHcRF+1jf9AXw/ZhEkocSxAAAAAElFTkSuQmCC" alt="bambutagger_resize" />&nbsp;BambuTagger-Console</h1>
   <p class="sub">WiFi &amp; printer configuration</p>
   <form method="post" action="/save">
-    <h2>&#128246; WiFi</h2>
+    <h2>WiFi</h2>
     <label>SSID</label>
     <input name="ssid" placeholder="Your WiFi network name" required autocomplete="off" %%SSID%%>
     <label>Password</label>
     <input name="pass" type="password" placeholder="WiFi password" autocomplete="off" %%PASS%%>
 
-    <h2>&#128247; Bambu Printer</h2>
+    <h2>Bambu Printer 1</h2>
     <label>IP Address</label>
     <input name="ip" placeholder="e.g. 192.168.1.100" required %%IP%%>
     <p class="hint">Printer: Settings &#8594; Network</p>
@@ -74,7 +74,7 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
     <input name="code" placeholder="8-digit code" required %%CODE%%>
     <p class="hint">Printer: Settings &#8594; Network &#8594; Access Code</p>
 
-    <button type="submit">&#128190;&nbsp; Save &amp; Reboot</button>
+    <button type="submit">Save &amp; Reboot</button>
   </form>
 </div>
 </body>
