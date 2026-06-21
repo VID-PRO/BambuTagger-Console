@@ -55,7 +55,8 @@ void ota_task(void *param) {
 
     _set_status(screen, "Checking for updates…", 0x90CAF9);
 
-    // ── 1. Fetch latest release info ──────────────────────────
+    // ── 1–3. Fetch release info, parse JSON, find asset ─────
+    String downloadUrl;
     {
         WiFiClientSecure client;
         client.setInsecure();
@@ -113,7 +114,6 @@ void ota_task(void *param) {
 
         // ── 3. Find BambuTagger-Console.ino.bin asset ─────────
         JsonArray assets = doc["assets"].as<JsonArray>();
-        String downloadUrl;
         for (JsonObject asset : assets) {
             const char *name = asset["name"].as<const char *>();
             if (name && strcmp(name, "BambuTagger-Console.ino.bin") == 0) {
@@ -126,10 +126,12 @@ void ota_task(void *param) {
             OTA_EXIT();
             return;
         }
+    } // WiFiClientSecure client + HTTPClient http destroyed here
 
-        // ── 4. Download binary ────────────────────────────────
-        _set_status(screen, "Downloading firmware…", 0x90CAF9);
+    // ── 4. Download binary (fresh SSL context) ─────────────────
+    _set_status(screen, "Downloading firmware…", 0x90CAF9);
 
+    {
         WiFiClientSecure client2;
         client2.setInsecure();
         HTTPClient http2;
@@ -143,7 +145,7 @@ void ota_task(void *param) {
         }
         http2.addHeader("User-Agent", "BambuTagger-Console");
 
-        code = http2.GET();
+        int code = http2.GET();
         if (code != 200) {
             char buf[64];
             snprintf(buf, sizeof(buf), "Download error: %d", code);
@@ -209,6 +211,4 @@ void ota_task(void *param) {
         vTaskDelay(pdMS_TO_TICKS(1500));
         ESP.restart();
     }
-
-    OTA_EXIT();
 }
