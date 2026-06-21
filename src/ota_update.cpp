@@ -17,6 +17,15 @@ extern SemaphoreHandle_t g_lv_mutex;
 #define LV_LOCK()   xSemaphoreTake(g_lv_mutex, portMAX_DELAY)
 #define LV_UNLOCK() xSemaphoreGive(g_lv_mutex)
 
+// Clean exit from ota_task: release LVGL mutex if held, clear handle, delete self
+#define OTA_EXIT() \
+    do { \
+        xSemaphoreGive(g_lv_mutex); /* best-effort release */ \
+        g_ota_task_handle = nullptr; \
+        vTaskDelay(pdMS_TO_TICKS(20)); \
+        vTaskDelete(nullptr); \
+    } while(0)
+
 TaskHandle_t g_ota_task_handle = nullptr;
 
 // ── Simple semver comparison (true if a > b) ──────────────────
@@ -56,7 +65,7 @@ void ota_task(void *param) {
 
         if (!http.begin(client, "https://api.github.com/repos/VID-PRO/BambuTagger-Console/releases/latest")) {
             _set_status(screen, "HTTP begin failed", 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
         http.addHeader("User-Agent", "BambuTagger-Console");
@@ -68,7 +77,7 @@ void ota_task(void *param) {
             snprintf(buf, sizeof(buf), "GitHub API error: %d", code);
             _set_status(screen, buf, 0xE74C3C);
             http.end();
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -80,14 +89,14 @@ void ota_task(void *param) {
         DeserializationError err = deserializeJson(doc, payload);
         if (err) {
             _set_status(screen, "Failed to parse release info", 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
         const char *tag = doc["tag_name"].as<const char *>();
         if (!tag || !*tag) {
             _set_status(screen, "No release tag found", 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -98,7 +107,7 @@ void ota_task(void *param) {
             _set_status(screen, "Already up to date", 0x1DB954);
             vTaskDelay(pdMS_TO_TICKS(3000));
             _set_status(screen, "", 0x6C757D);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -114,7 +123,7 @@ void ota_task(void *param) {
         }
         if (downloadUrl.length() == 0) {
             _set_status(screen, "Binary not found in release", 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -129,7 +138,7 @@ void ota_task(void *param) {
 
         if (!http2.begin(client2, downloadUrl)) {
             _set_status(screen, "Download HTTP begin failed", 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
         http2.addHeader("User-Agent", "BambuTagger-Console");
@@ -140,7 +149,7 @@ void ota_task(void *param) {
             snprintf(buf, sizeof(buf), "Download error: %d", code);
             _set_status(screen, buf, 0xE74C3C);
             http2.end();
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -150,7 +159,7 @@ void ota_task(void *param) {
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
             _set_status(screen, "Update init failed", 0xE74C3C);
             http2.end();
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -168,7 +177,7 @@ void ota_task(void *param) {
                     _set_status(screen, "Flash write failed", 0xE74C3C);
                     Update.end(false);
                     http2.end();
-                    g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+                    OTA_EXIT();
                     return;
                 }
                 written += read;
@@ -192,7 +201,7 @@ void ota_task(void *param) {
             char buf[64];
             snprintf(buf, sizeof(buf), "Update failed: %s", Update.errorString());
             _set_status(screen, buf, 0xE74C3C);
-            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
+            OTA_EXIT();
             return;
         }
 
@@ -201,6 +210,5 @@ void ota_task(void *param) {
         ESP.restart();
     }
 
-    g_ota_task_handle = nullptr;
-    vTaskDelete(nullptr);
+    OTA_EXIT();
 }
