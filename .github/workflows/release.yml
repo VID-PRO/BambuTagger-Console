@@ -1,8 +1,9 @@
 # ============================================================
 #  BambuTagger-Console — Automatic Build & Release
-#  Compiles the ESP32 sketch and publishes a GitHub Release
-#  every time a version tag (v*) is pushed.
-#  A normal push to main only compiles (smoke-test, no release).
+#  Compiles the ESP32-S3 firmware and publishes a GitHub
+#  Release every time a version tag (v*) is pushed.
+#  A normal push / PR to main only compiles (smoke test,
+#  no release).
 # ============================================================
 
 name: Build & Release
@@ -28,38 +29,39 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Python 3
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Cache PlatformIO and pip
+      - name: Cache PlatformIO
         uses: actions/cache@v4
         with:
-          path: |
-            ~/.platformio
-            ~/.cache/pip
+          path: ~/.platformio
           key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
           restore-keys: platformio-${{ runner.os }}-
 
       - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
-          pip install platformio
+          pip install platformio esptool --quiet
 
       - name: Build with PlatformIO
         run: |
           pio run -e esp32-8048s043
 
-      - name: Create merged binary
+      - name: Copy and rename artefacts
         run: |
-          python -m pip install --upgrade pip
-          pip install esptool --quiet
           mkdir -p build
-          APP="${{ github.workspace }}/.pio/build/esp32-8048s043/firmware.bin"
-          BOOT="${{ github.workspace }}/.pio/build/esp32-8048s043/bootloader.bin"
-          PART="${{ github.workspace }}/.pio/build/esp32-8048s043/partitions.bin"
+          cp "${{ github.workspace }}/.pio/build/esp32-8048s043/firmware.bin"         build/BambuTagger-Console.ino.bin
+          cp "${{ github.workspace }}/.pio/build/esp32-8048s043/bootloader.bin"       build/BambuTagger-Console.ino.bootloader.bin
+          cp "${{ github.workspace }}/.pio/build/esp32-8048s043/partitions.bin"        build/BambuTagger-Console.ino.partitions.bin
+
+          APP="${{ github.workspace }}/build/BambuTagger-Console.ino.bin"
+          BOOT="${{ github.workspace }}/build/BambuTagger-Console.ino.bootloader.bin"
+          PART="${{ github.workspace }}/build/BambuTagger-Console.ino.partitions.bin"
           MERGED="${{ github.workspace }}/build/BambuTagger-Console_merged.bin"
+
           esptool.py \
             --chip esp32s3 \
             merge_bin \
@@ -67,22 +69,22 @@ jobs:
             --flash_mode qio \
             --flash_freq 80m \
             --flash_size 16MB \
-            0x1000 "$BOOT" \
-            0x8000 "$PART" \
-            0x10000 "$APP"
+            0x1000   "$BOOT" \
+            0x8000   "$PART" \
+            0x10000  "$APP"
+
           echo "=== Build artefacts ==="
-          ls -lh "${{ github.workspace }}/.pio/build/esp32-8048s043/"
           ls -lh "${{ github.workspace }}/build/"
 
-      - name: Upload firmware artifacts
+      - name: Upload firmware artefacts
         uses: actions/upload-artifact@v4
         with:
           name: BambuTagger-Console-firmware-${{ github.sha }}
           retention-days: 30
           path: |
-            .pio/build/esp32-8048s043/firmware.bin
-            .pio/build/esp32-8048s043/bootloader.bin
-            .pio/build/esp32-8048s043/partitions.bin
+            build/BambuTagger-Console.ino.bin
+            build/BambuTagger-Console.ino.bootloader.bin
+            build/BambuTagger-Console.ino.partitions.bin
             build/BambuTagger-Console_merged.bin
 
       - name: Create GitHub Release
@@ -92,9 +94,9 @@ jobs:
           name: "BambuTagger-Console ${{ github.ref_name }}"
           generate_release_notes: true
           files: |
-            .pio/build/esp32-8048s043/firmware.bin
-            .pio/build/esp32-8048s043/bootloader.bin
-            .pio/build/esp32-8048s043/partitions.bin
+            build/BambuTagger-Console.ino.bin
+            build/BambuTagger-Console.ino.bootloader.bin
+            build/BambuTagger-Console.ino.partitions.bin
             build/BambuTagger-Console_merged.bin
           body: |
             ## Flashing instructions
@@ -109,10 +111,15 @@ jobs:
             ```
             esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 921600 \
               write_flash \
-              0x1000   BambuTagger-Console/bootloader.bin \
-              0x8000   BambuTagger-Console/partitions.bin \
-              0x10000  BambuTagger-Console/firmware.bin
+              0x1000   BambuTagger-Console.ino.bootloader.bin \
+              0x8000   BambuTagger-Console.ino.partitions.bin \
+              0x10000  BambuTagger-Console.ino.bin
             ```
 
-            > **Board:** ESP32-S3 Dev Module
+            > **Board:** ESP32-S3 Dev Module (Sunton ESP32-8048S043)
+            > **Framework:** Arduino (PlatformIO)
             > **Flash:** 16 MB, QIO, 80 MHz
+            > **PSRAM:** OPI
+
+            ### OTA Update
+            Upload `BambuTagger-Console.ino.bin` via the web interface (Configuration → Firmware Update).

@@ -355,8 +355,21 @@ void setup() {
 
     // Wire firmware upgrade button from WiFi config screen
     g_ui.onUpgradeWiFi([]() {
-        xTaskCreatePinnedToCore(ota_task, "ota_update", 32768,
-                                &g_ui.configWifiScreen(), 1, nullptr, 1);
+        if (ota_is_busy()) {
+            LV_LOCK();
+            g_ui.configWifiScreen().setStatusText(
+                "OTA already in progress", lv_color_hex(0xE74C3C));
+            LV_UNLOCK();
+            return;
+        }
+        if (xTaskCreatePinnedToCore(ota_task, "ota_update", 32768,
+                                    &g_ui.configWifiScreen(), 1, nullptr, 1)
+            != pdPASS) {
+            LV_LOCK();
+            g_ui.configWifiScreen().setStatusText(
+                "Failed to start OTA", lv_color_hex(0xE74C3C));
+            LV_UNLOCK();
+        }
     });
 
     // Wire config "save & connect" button from printer config screen

@@ -165,9 +165,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
   <div class="ver">Current: <span class="old" id="cur-ver">%%VER%%</span></div>
   <div class="ver">Latest:  <span class="new" id="lat-ver">&mdash;</span></div>
   <div id="status"></div>
-  <form id="up-form" method="post" action="/update">
-    <button id="up-btn" type="submit">Install Latest Version</button>
-  </form>
+  <button id="up-btn">Install Latest Version</button>
   <a class="back-link" href="/">&larr; Back to Configuration</a>
 </div>
 <script>
@@ -204,10 +202,27 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
     btn.disabled=false;
   };
   x.send();
-  document.getElementById('up-form').onsubmit=function(e){
-    if(btn.disabled){e.preventDefault();return}
+  btn.onclick=function(){
+    if(btn.disabled)return;
     btn.disabled=true; btn.textContent='Installing…';
     st.className='info'; st.textContent='Downloading firmware from GitHub…';
+    var x=new XMLHttpRequest();
+    x.open('POST','/update',true);
+    x.onload=function(){
+      if(x.responseText=='OK'){
+        st.className='ok'; st.textContent='Update complete! Rebooting\u2026';
+        btn.textContent='Rebooting\u2026';
+      }else{
+        st.className='err'; st.textContent=x.responseText;
+        btn.disabled=false; btn.textContent='Try Again';
+      }
+    };
+    x.onerror=function(){
+      st.className='ok';
+      st.textContent='Update initiated \u2014 device is rebooting.';
+      btn.textContent='Rebooting\u2026';
+    };
+    x.send();
   };
 })();
 </script>
@@ -355,15 +370,14 @@ static bool _portal_get_latest_release(String &downloadUrl, String &tag) {
         JsonArray assets = doc["assets"].as<JsonArray>();
         for (JsonObject asset : assets) {
             const char *name = asset["name"].as<const char *>();
-            if (name && strcmp(name, "firmware.bin") == 0) {
+            if (name && strcmp(name, "BambuTagger-Console.ino.bin") == 0) {
                 downloadUrl = asset["browser_download_url"].as<String>();
                 break;
             }
         }
-        // fallback: construct URL from tag if assets array was empty
         if (downloadUrl.length() == 0) {
             downloadUrl = "https://github.com/VID-PRO/BambuTagger-Console/releases/download/"
-                        + tag + "/firmware.bin";
+                        + tag + "/BambuTagger-Console.ino.bin";
         }
     }
     return downloadUrl.length() > 0;
@@ -413,26 +427,20 @@ static void _portal_handle_update_github() {
 
     String downloadUrl, tag;
     if (!_portal_get_latest_release(downloadUrl, tag)) {
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", "Failed to fetch release info");
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        _portal_server.send(200, "text/plain; charset=utf-8", "Error: Failed to fetch release info");
         ota_display_end();
         return;
     }
 
     ota_display_progress(5, "Downloading firmware from GitHub…");
 
-    // Use a fresh WiFiClientSecure — the API client in _portal_get_latest_release
-    // is already cleaned up since we left its scope.
     WiFiClientSecure client;
     client.setInsecure();
     HTTPClient http;
     http.setTimeout(30000);
     http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
     if (!http.begin(client, downloadUrl)) {
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", "Download connection failed");
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        _portal_server.send(200, "text/plain; charset=utf-8", "Error: Download connection failed");
         ota_display_end();
         return;
     }
@@ -441,10 +449,8 @@ static void _portal_handle_update_github() {
     int code = http.GET();
     if (code != 200) {
         char buf[80];
-        snprintf(buf, sizeof(buf), "Download error: HTTP %d", code);
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", buf);
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        snprintf(buf, sizeof(buf), "Error: Download error (HTTP %d)", code);
+        _portal_server.send(200, "text/plain; charset=utf-8", buf);
         http.end();
         ota_display_end();
         return;
@@ -455,9 +461,7 @@ static void _portal_handle_update_github() {
 
     uint8_t *buf = (uint8_t *)malloc(1024);
     if (!buf) {
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", "Memory allocation failed");
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        _portal_server.send(200, "text/plain; charset=utf-8", "Error: Memory allocation failed");
         http.end();
         ota_display_end();
         return;
@@ -465,9 +469,7 @@ static void _portal_handle_update_github() {
 
     if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
         free(buf);
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", "Update init failed");
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        _portal_server.send(200, "text/plain; charset=utf-8", "Error: Update init failed");
         http.end();
         ota_display_end();
         return;
@@ -485,9 +487,7 @@ static void _portal_handle_update_github() {
             if (Update.write(buf, read) != read) {
                 free(buf);
                 Update.end(false);
-                String html = FPSTR(_UPDATE_FAIL_HTML);
-                html.replace("%%MSG%%", "Flash write failed");
-                _portal_server.send(200, "text/html; charset=utf-8", html);
+                _portal_server.send(200, "text/plain; charset=utf-8", "Error: Flash write failed");
                 http.end();
                 ota_display_end();
                 return;
@@ -513,15 +513,13 @@ static void _portal_handle_update_github() {
     if (!Update.end(true)) {
         char msg[96];
         snprintf(msg, sizeof(msg), "Update failed: %s", Update.errorString());
-        String html = FPSTR(_UPDATE_FAIL_HTML);
-        html.replace("%%MSG%%", msg);
-        _portal_server.send(200, "text/html; charset=utf-8", html);
+        _portal_server.send(200, "text/plain; charset=utf-8", msg);
         ota_display_end();
         return;
     }
 
     ota_display_progress(100, "Update complete! Rebooting…");
-    _portal_server.send_P(200, "text/html; charset=utf-8", _UPDATE_OK_HTML);
+    _portal_server.send(200, "text/plain; charset=utf-8", "OK");
     _portal_server.client().flush();
     delay(1500);
     ESP.restart();

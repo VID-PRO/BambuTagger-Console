@@ -17,6 +17,8 @@ extern SemaphoreHandle_t g_lv_mutex;
 #define LV_LOCK()   xSemaphoreTake(g_lv_mutex, portMAX_DELAY)
 #define LV_UNLOCK() xSemaphoreGive(g_lv_mutex)
 
+TaskHandle_t g_ota_task_handle = nullptr;
+
 // ── Simple semver comparison (true if a > b) ──────────────────
 static bool _ver_gt(const char *a, const char *b) {
     int ma, mb;
@@ -40,6 +42,7 @@ static void _set_status(ScreenConfigWiFi *screen, const char *txt, uint32_t colo
 // ── OTA task ──────────────────────────────────────────────────
 void ota_task(void *param) {
     ScreenConfigWiFi *screen = (ScreenConfigWiFi *)param;
+    g_ota_task_handle = xTaskGetCurrentTaskHandle();
 
     _set_status(screen, "Checking for updates…", 0x90CAF9);
 
@@ -53,7 +56,7 @@ void ota_task(void *param) {
 
         if (!http.begin(client, "https://api.github.com/repos/VID-PRO/BambuTagger-Console/releases/latest")) {
             _set_status(screen, "HTTP begin failed", 0xE74C3C);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
         http.addHeader("User-Agent", "BambuTagger-Console");
@@ -65,7 +68,7 @@ void ota_task(void *param) {
             snprintf(buf, sizeof(buf), "GitHub API error: %d", code);
             _set_status(screen, buf, 0xE74C3C);
             http.end();
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
@@ -77,14 +80,14 @@ void ota_task(void *param) {
         DeserializationError err = deserializeJson(doc, payload);
         if (err) {
             _set_status(screen, "Failed to parse release info", 0xE74C3C);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
         const char *tag = doc["tag_name"].as<const char *>();
         if (!tag || !*tag) {
             _set_status(screen, "No release tag found", 0xE74C3C);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
@@ -95,27 +98,27 @@ void ota_task(void *param) {
             _set_status(screen, "Already up to date", 0x1DB954);
             vTaskDelay(pdMS_TO_TICKS(3000));
             _set_status(screen, "", 0x6C757D);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
-        // ── 3. Find firmware.bin asset ────────────────────────
+        // ── 3. Find BambuTagger-Console.ino.bin asset ─────────
         JsonArray assets = doc["assets"].as<JsonArray>();
         String downloadUrl;
         for (JsonObject asset : assets) {
             const char *name = asset["name"].as<const char *>();
-            if (name && strcmp(name, "firmware.bin") == 0) {
+            if (name && strcmp(name, "BambuTagger-Console.ino.bin") == 0) {
                 downloadUrl = asset["browser_download_url"].as<String>();
                 break;
             }
         }
         if (downloadUrl.length() == 0) {
-            _set_status(screen, "firmware.bin not found in release", 0xE74C3C);
-            vTaskDelete(nullptr);
+            _set_status(screen, "Binary not found in release", 0xE74C3C);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
-        // ── 4. Download firmware.bin ──────────────────────────
+        // ── 4. Download binary ────────────────────────────────
         _set_status(screen, "Downloading firmware…", 0x90CAF9);
 
         WiFiClientSecure client2;
@@ -126,7 +129,7 @@ void ota_task(void *param) {
 
         if (!http2.begin(client2, downloadUrl)) {
             _set_status(screen, "Download HTTP begin failed", 0xE74C3C);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
         http2.addHeader("User-Agent", "BambuTagger-Console");
@@ -137,7 +140,7 @@ void ota_task(void *param) {
             snprintf(buf, sizeof(buf), "Download error: %d", code);
             _set_status(screen, buf, 0xE74C3C);
             http2.end();
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
@@ -147,7 +150,7 @@ void ota_task(void *param) {
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
             _set_status(screen, "Update init failed", 0xE74C3C);
             http2.end();
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
@@ -165,7 +168,7 @@ void ota_task(void *param) {
                     _set_status(screen, "Flash write failed", 0xE74C3C);
                     Update.end(false);
                     http2.end();
-                    vTaskDelete(nullptr);
+                    g_ota_task_handle = nullptr; vTaskDelete(nullptr);
                     return;
                 }
                 written += read;
@@ -189,7 +192,7 @@ void ota_task(void *param) {
             char buf[64];
             snprintf(buf, sizeof(buf), "Update failed: %s", Update.errorString());
             _set_status(screen, buf, 0xE74C3C);
-            vTaskDelete(nullptr);
+            g_ota_task_handle = nullptr; vTaskDelete(nullptr);
             return;
         }
 
@@ -198,5 +201,6 @@ void ota_task(void *param) {
         ESP.restart();
     }
 
+    g_ota_task_handle = nullptr;
     vTaskDelete(nullptr);
 }
