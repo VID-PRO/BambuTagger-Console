@@ -7,6 +7,10 @@
  * then stored in NVS (Preferences).
  */
 
+// -- Version info ----------------------------------------------
+#define APP_NAME    "BambuTagger-Console"
+#define APP_VERSION "1.0.0"
+
 // ── WiFi ──────────────────────────────────────────────────────
 #define DEFAULT_WIFI_SSID     "YourWiFiSSID"
 #define DEFAULT_WIFI_PASSWORD "YourWiFiPassword"
