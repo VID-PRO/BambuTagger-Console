@@ -250,7 +250,7 @@ void ScreenStatus::update(const PrinterStatus &s) {
 
     // Temperatures
     char tmp[48];
-    snprintf(tmp, sizeof(tmp), LV_SYMBOL_DOWNLOAD" Nozzle   %.0f°C / %.0f°C",
+    snprintf(tmp, sizeof(tmp), LV_SYMBOL_DOWNLOAD " Nozzle   %.0f°C / %.0f°C",
              s.temp_nozzle, s.temp_nozzle_t);
     lv_label_set_text(_lbl_nozzle, tmp);
 

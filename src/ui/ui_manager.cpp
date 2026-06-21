@@ -79,7 +79,7 @@ void UIManager::init() {
 
     // ── MQTT dot (above WiFi, bottom of sidebar) ─────────────
     _lbl_mqtt_dot = lv_label_create(_sidebar);
-    lv_label_set_text(_lbl_mqtt_dot, LV_SYMBOL_LOOP);
+    lv_label_set_text(_lbl_mqtt_dot, LV_SYMBOL_EYE_CLOSE);
     lv_obj_set_style_text_font(_lbl_mqtt_dot, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lbl_mqtt_dot, lv_color_hex(0xE74C3C), 0);
     lv_obj_align(_lbl_mqtt_dot, LV_ALIGN_BOTTOM_MID, 0, -40);
@@ -137,6 +137,10 @@ void UIManager::setMqttConnected(bool connected) {
         _lbl_mqtt_dot,
         connected ? lv_color_hex(0x1DB954) : lv_color_hex(0xE74C3C),
         0);
+    lv_label_set_text(
+        _lbl_mqtt_dot, 
+        connected ? LV_SYMBOL_EYE_OPEN : LV_SYMBOL_EYE_CLOSE
+    );
 }
 
 void UIManager::onConnect(ConnectCallback cb) {
