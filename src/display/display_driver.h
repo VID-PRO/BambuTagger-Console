@@ -507,8 +507,7 @@ inline void display_init() {
     disp_drv.ver_res      = LCD_HEIGHT;
     disp_drv.flush_cb     = _lvgl_flush;
     disp_drv.draw_buf     = &_draw_buf;
-    disp_drv.full_refresh = 1;   // always redraw the full screen — eliminates
-                                  // partial-update tearing on RGB panels
+    disp_drv.full_refresh = 0;   // only redraw dirty areas — reduces flicker
     lv_disp_drv_register(&disp_drv);
 
     static lv_indev_drv_t indev_drv;

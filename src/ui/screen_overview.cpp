@@ -131,8 +131,8 @@ void ScreenOverview::_buildLayout() {
             lv_label_set_text(_cards[i].lbl_ip, "---");
 
             // ── Job name (full width above thumbnail) ────────
-            int info_x = 4 + thumb_w + 8;
-            int job_w  = ca_w - 8;
+            int info_x = 4 + thumb_w + 16;
+            int job_w  = ca_w - 88; // leave room for state badge on right
             _cards[i].lbl_job = lv_label_create(_cards[i].root);
             lv_obj_set_style_text_font(_cards[i].lbl_job, &lv_font_montserrat_20, 0);
             lv_obj_set_style_text_color(_cards[i].lbl_job, COL_ACC, 0);
@@ -194,7 +194,7 @@ void ScreenOverview::_buildLayout() {
         } else {
             // Reposition existing card
             int ca_w = cw - 16;
-            int job_w = ca_w - 8;
+            int job_w = ca_w - 88;
             lv_obj_set_pos(_cards[i].root, x, y);
             lv_obj_set_size(_cards[i].root, cw, ch);
             lv_obj_set_width(_cards[i].bar_prog, ca_w - 80);
