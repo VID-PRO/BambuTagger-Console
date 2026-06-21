@@ -75,7 +75,7 @@ bool FtpsClient::_connectControl() {
     // Either way we always save the resulting session for data channels.
     bool ok = _ctrl->connect(_ip, BAMBU_FTP_PORT,
                               _has_session ? &_session : nullptr,
-                              TIMEOUT_MS);
+                              TIMEOUT_MS, /*use_psram=*/true);
     if (!ok) {
         log_w("FTPS TCP/TLS connect failed");
         _freeCtrl();
@@ -612,23 +612,10 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
                                       const char *gcode_file,
                                       uint8_t    *out_buf,
                                       size_t      max_bytes) {
-    if (!_ensureControl()) { log_w("FTPS ctrl connect failed"); return 0; }
-
-    // ── DIAGNOSTIC: list dirs to map the FTP filesystem ──────────────────────
-    log_i("FTPS SCAN job='%s' gcode='%s'",
+    log_i("FTPS thumb job='%s' gcode='%s'",
           job_name   ? job_name   : "(null)",
           gcode_file ? gcode_file : "(null)");
-    _listDir("/");
-    if (!_ensureControl()) return 0;
-    _listDir("/data");
-    if (!_ensureControl()) return 0;
-    _listDir("/data/Metadata");
-    if (!_ensureControl()) return 0;
-    _listDir("/Metadata");
-    if (!_ensureControl()) return 0;
-    _listDir("/cache");
-    if (!_ensureControl()) return 0;
-    // ── end diagnostic ────────────────────────────────────────────────────────
+    if (!_ensureControl()) { log_w("FTPS ctrl connect failed"); return 0; }
 
     size_t got = 0;
 
@@ -714,5 +701,6 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
     }
 
     _disconnect();
+    log_i("FTPS thumb result: %u bytes", got);
     return got;
 }

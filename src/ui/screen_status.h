@@ -41,11 +41,19 @@ public:
     void onResume(PrintControlCallback cb) { _resume_cb = cb; }
     void onStop  (PrintControlCallback cb) { _stop_cb   = cb; }
 
+    /** Show/hide back button + set callback (calls showOverview in UIManager). */
+    void setShowBack(bool show) { _show_back = show; }
+    void onBack(std::function<void()> cb) { _back_cb = cb; }
+
+    /** Set the printer IP shown in the header. */
+    void setPrinterName(const char *name);
+
     lv_obj_t *root() const { return _root; }
 
 private:
     static void _pause_btn_cb(lv_event_t *e);
     static void _stop_btn_cb (lv_event_t *e);
+    static void _back_btn_cb (lv_event_t *e);
 
     void _updateControls(PrintState state);
 
@@ -62,16 +70,20 @@ private:
     lv_obj_t *_lbl_time       = nullptr;
     lv_obj_t *_lbl_speed      = nullptr;
     lv_obj_t *_lbl_noconn     = nullptr;
+    lv_obj_t *_lbl_printer    = nullptr;
+    lv_obj_t *_btn_back       = nullptr;
 
     // Control buttons
     lv_obj_t *_btn_pause      = nullptr;  // doubles as Resume
     lv_obj_t *_btn_stop       = nullptr;
     lv_obj_t *_lbl_pause_btn  = nullptr;  // label inside _btn_pause
+    bool      _show_back      = false;
     PrintState _last_state     = PrintState::UNKNOWN;
 
     PrintControlCallback _pause_cb;
     PrintControlCallback _resume_cb;
     PrintControlCallback _stop_cb;
+    std::function<void()> _back_cb;
 
     static lv_style_t _style_badge_run;
     static lv_style_t _style_badge_idle;

@@ -29,6 +29,9 @@ public:
     /** Update the status label text and colour (thread-safe with LV_LOCK). */
     void setStatusText(const char *text, lv_color_t color);
 
+    /** Update dedicated progress overlay (outside scroll area, no layout flicker). */
+    void setProgress(const char *text, lv_color_t color);
+
     lv_obj_t *root() const { return _root; }
 
 private:
@@ -47,6 +50,7 @@ private:
     lv_obj_t        *_ta_pass     = nullptr;
     lv_obj_t        *_kb          = nullptr;
     lv_obj_t        *_lbl_status  = nullptr;
+    lv_obj_t        *_lbl_progress = nullptr;
     lv_obj_t        *_btn_upgrade = nullptr;
     SaveCallback     _save_cb;
     std::function<void()> _cal_cb;

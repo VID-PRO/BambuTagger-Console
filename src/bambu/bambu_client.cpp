@@ -26,6 +26,7 @@ void BambuClient::begin(const char *ip, const char *serial, const char *access_c
     strncpy(_ip,     ip,           sizeof(_ip)     - 1);
     strncpy(_serial, serial,       sizeof(_serial) - 1);
     strncpy(_code,   access_code,  sizeof(_code)   - 1);
+    strncpy(_status.ip, ip, sizeof(_status.ip) - 1);
 
     snprintf(_sub_topic, sizeof(_sub_topic), "device/%s/report",  _serial);
     snprintf(_pub_topic, sizeof(_pub_topic), "device/%s/request", _serial);

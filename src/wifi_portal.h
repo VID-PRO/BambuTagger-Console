@@ -44,14 +44,16 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
        min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
-  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:440px;
+  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:480px;
         box-shadow:0 4px 24px rgba(0,0,0,.5)}
   h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
   .sub{color:#8899aa;font-size:.85em;margin-bottom:22px}
   h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
      margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
+  .printer-section{border:1px solid #1e3a5f;border-radius:8px;padding:12px;margin:8px 0}
+  .printer-section h3{color:#eaeaea;font-size:.9em;margin:0 0 8px}
   label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
-  input{display:block;width:100%;padding:10px 12px;margin-bottom:12px;
+  input{display:block;width:100%;padding:10px 12px;margin-bottom:10px;
         background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
         font-size:.95em;outline:none;transition:border .2s}
   input:focus{border-color:#1db954}
@@ -59,9 +61,18 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
          background:#1db954;color:#fff;border:none;border-radius:8px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
   button:hover{background:#17a845}
-  .hint{color:#6c757d;font-size:.78em;margin-top:-9px;margin-bottom:12px}
+  .hint{color:#6c757d;font-size:.78em;margin-top:-7px;margin-bottom:10px}
+  .printer-hide{display:none}
 </style>
-<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEwR8g/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg==" type="image/svg+xml" />
+<script>
+function togglePrinters(n){
+  for(var i=1;i<=4;i++){
+    var el=document.getElementById('printer-'+i);
+    if(el) el.className='printer-section'+(i>n?' printer-hide':'');
+  }
+}
+</script>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEQf8A/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg==" type="image/svg+xml" />
 </head>
 <body>
 <div class="card">
@@ -74,16 +85,19 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
     <label>Password</label>
     <input name="pass" type="password" placeholder="WiFi password" autocomplete="off" %%PASS%%>
 
-    <h2>Bambu Printer 1</h2>
-    <label>IP Address</label>
-    <input name="ip" placeholder="e.g. 192.168.1.100" required %%IP%%>
-    <p class="hint">Printer: Settings &#8594; Network</p>
-    <label>Serial Number</label>
-    <input name="serial" placeholder="e.g. 01S00C123456789" required %%SERIAL%%>
-    <p class="hint">Printer: Settings &#8594; About</p>
-    <label>Access Code</label>
-    <input name="code" placeholder="8-digit code" required %%CODE%%>
-    <p class="hint">Printer: Settings &#8594; Network &#8594; Access Code</p>
+    <h2>Printers</h2>
+    <label style="display:inline">Number of printers:</label>
+    <select name="bam_count" onchange="togglePrinters(parseInt(this.value))"
+            style="display:inline-block;width:auto;padding:6px 10px;margin-bottom:12px;
+                   background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
+                   font-size:.95em;outline:none">
+      <option value="1" %%SEL1%%>1</option>
+      <option value="2" %%SEL2%%>2</option>
+      <option value="3" %%SEL3%%>3</option>
+      <option value="4" %%SEL4%%>4</option>
+    </select>
+
+    %%PRINTERS%%
 
     <button type="submit">Save &amp; Reboot</button>
   </form>
@@ -93,6 +107,7 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
        onmouseout="this.style.textDecoration='none'">&#9654; Firmware Update</a>
   </div>
 </div>
+<script>togglePrinters(%%COUNT%%);</script>
 </body>
 </html>
 )html";
@@ -103,6 +118,7 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="15;url=/">
 <title>BambuTagger-Console</title>
 <style>
   body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
@@ -112,12 +128,13 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
   p{color:#8899aa}
 </style>
 <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEwR8g/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg==" type="image/svg+xml" />
+<script>setTimeout(function(){location.href='/'},15000);</script>
 </head>
 <body>
 <div class="card">
   <h1>&#10003; Saved!</h1>
   <p>Settings stored. Device is rebooting&hellip;</p>
-  <p style="margin-top:12px;font-size:.85em">You can reconnect after a few seconds.</p>
+  <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 15 seconds&hellip;</p>
 </div>
 </body>
 </html>
@@ -212,6 +229,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
       if(x.responseText=='OK'){
         st.className='ok'; st.textContent='Update complete! Rebooting\u2026';
         btn.textContent='Rebooting\u2026';
+        setTimeout(function(){location.href='/'},20000);
       }else{
         st.className='err'; st.textContent=x.responseText;
         btn.disabled=false; btn.textContent='Try Again';
@@ -221,6 +239,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
       st.className='ok';
       st.textContent='Update initiated \u2014 device is rebooting.';
       btn.textContent='Rebooting\u2026';
+      setTimeout(function(){location.href='/'},20000);
     };
     x.send();
   };
@@ -237,6 +256,7 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="20;url=/">
 <title>BambuTagger-Console — Update</title>
 <style>
   body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
@@ -250,6 +270,7 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
 <div class="card">
   <h1>&#10003; Update Complete!</h1>
   <p>Firmware flashed successfully. Rebooting&hellip;</p>
+  <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 20 seconds&hellip;</p>
 </div>
 </body>
 </html>
@@ -287,48 +308,123 @@ static WebServer _portal_server(80);
 static bool      _portal_active = false;
 static bool      _sta_server_active = false;
 
+// ── Build printer section HTML for one printer ─────────────────
+static String _portal_printer_section(int idx, const String &ip,
+                                       const String &serial, const String &code) {
+    char buf[768];
+    snprintf(buf, sizeof(buf),
+        R"(<div class="printer-section" id="printer-%d">)" "\n"
+        R"(  <h3>Printer %d</h3>)" "\n"
+        R"(  <label>IP Address</label>)" "\n"
+        R"(  <input name="ip_%d" placeholder="e.g. 192.168.1.100" value="%%IP%d%%">)" "\n"
+        R"(  <p class="hint">Printer: Settings &#8594; Network</p>)" "\n"
+        R"(  <label>Serial Number</label>)" "\n"
+        R"(  <input name="serial_%d" placeholder="e.g. 01S00C123456789" value="%%SER%d%%">)" "\n"
+        R"(  <p class="hint">Printer: Settings &#8594; About</p>)" "\n"
+        R"(  <label>Access Code</label>)" "\n"
+        R"(  <input name="code_%d" type="password" placeholder="8-digit code" value="%%COD%d%%">)" "\n"
+        R"(  <p class="hint">Printer: Settings &#8594; Network &#8594; Access Code</p>)" "\n"
+        R"(</div>)",
+        idx + 1, idx + 1, idx, idx, idx, idx, idx, idx);
+    return String(buf);
+}
+
 static String _portal_build_page() {
-    // Read current NVS values for pre-filling in STA mode
     Preferences prefs;
     prefs.begin("bambu_mon", true);
-    String ssid   = prefs.getString("wifi_ssid",  "");
-    String pass   = prefs.getString("wifi_pass",  "");
-    String ip     = prefs.getString("bam_ip",     "");
-    String serial = prefs.getString("bam_serial", "");
-    String code   = prefs.getString("bam_code",   "");
+
+    String ssid   = prefs.getString("wifi_ssid", "");
+    String pass   = prefs.getString("wifi_pass", "");
+    int count     = prefs.getInt("bam_count", 1);
+
+    String ip[MAX_PRINTERS], serial[MAX_PRINTERS], code[MAX_PRINTERS];
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        char key[16];
+        snprintf(key, sizeof(key), "bam_ip_%d", i);
+        ip[i]     = prefs.getString(key, "");
+        snprintf(key, sizeof(key), "bam_serial_%d", i);
+        serial[i] = prefs.getString(key, "");
+        snprintf(key, sizeof(key), "bam_code_%d", i);
+        code[i]   = prefs.getString(key, "");
+    }
+    // Fallback: migrate old single-printer keys
+    if (count <= 1 && ip[0].length() == 0) {
+        ip[0]     = prefs.getString("bam_ip",     "");
+        serial[0] = prefs.getString("bam_serial", "");
+        code[0]   = prefs.getString("bam_code",   "");
+    }
     prefs.end();
+
+    // Build printer sections
+    String printersHtml;
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        printersHtml += _portal_printer_section(i, ip[i], serial[i], code[i]);
+    }
 
     String page = FPSTR(_PORTAL_PAGE_TMPL);
     page.replace("%%SSID%%",   ssid.length()   ? "value=\"" + ssid   + "\"" : "");
     page.replace("%%PASS%%",   pass.length()   ? "value=\"" + pass   + "\"" : "");
-    page.replace("%%IP%%",     ip.length()     ? "value=\"" + ip     + "\"" : "");
-    page.replace("%%SERIAL%%", serial.length() ? "value=\"" + serial + "\"" : "");
-    page.replace("%%CODE%%",   code.length()   ? "value=\"" + code   + "\"" : "");
+    page.replace("%%COUNT%%",  String(count));
+    page.replace("%%SEL1%%",   count == 1 ? "selected" : "");
+    page.replace("%%SEL2%%",   count == 2 ? "selected" : "");
+    page.replace("%%SEL3%%",   count == 3 ? "selected" : "");
+    page.replace("%%SEL4%%",   count == 4 ? "selected" : "");
+    page.replace("%%PRINTERS%%", printersHtml);
+
+    // Fill printer field values
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        char ph[16];
+        snprintf(ph, sizeof(ph), "%%IP%d%%", i);
+        page.replace(ph, ip[i]);
+        snprintf(ph, sizeof(ph), "%%SER%d%%", i);
+        page.replace(ph, serial[i]);
+        snprintf(ph, sizeof(ph), "%%COD%d%%", i);
+        page.replace(ph, code[i]);
+    }
+
     return page;
 }
 
 static void _portal_handle_save() {
-    String ssid   = _portal_server.arg("ssid");
-    String pass   = _portal_server.arg("pass");
-    String ip     = _portal_server.arg("ip");
-    String serial = _portal_server.arg("serial");
-    String code   = _portal_server.arg("code");
+    String ssid = _portal_server.arg("ssid");
+    String pass = _portal_server.arg("pass");
 
-    if (ssid.length() == 0 || ip.length() == 0) {
-        _portal_server.send(400, "text/plain", "SSID and IP are required.");
+    if (ssid.length() == 0) {
+        _portal_server.send(400, "text/plain", "SSID is required.");
+        return;
+    }
+
+    int count = _portal_server.arg("bam_count").toInt();
+    if (count < 1 || count > MAX_PRINTERS) count = 1;
+
+    // Validate at least printer 0 has an IP
+    String ip0 = _portal_server.arg("ip_0");
+    if (count > 0 && ip0.length() == 0) {
+        _portal_server.send(400, "text/plain", "Printer 1 IP is required.");
         return;
     }
 
     Preferences prefs;
     prefs.begin("bambu_mon", false);
-    prefs.putString("wifi_ssid",  ssid);
-    prefs.putString("wifi_pass",  pass);
-    prefs.putString("bam_ip",     ip);
-    prefs.putString("bam_serial", serial);
-    prefs.putString("bam_code",   code);
+
+    // WiFi
+    prefs.putString("wifi_ssid", ssid);
+    prefs.putString("wifi_pass", pass);
+
+    // Printer count + configs
+    prefs.putInt("bam_count", count);
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        char key[16];
+        snprintf(key, sizeof(key), "bam_ip_%d", i);
+        prefs.putString(key, _portal_server.arg("ip_" + String(i)));
+        snprintf(key, sizeof(key), "bam_serial_%d", i);
+        prefs.putString(key, _portal_server.arg("serial_" + String(i)));
+        snprintf(key, sizeof(key), "bam_code_%d", i);
+        prefs.putString(key, _portal_server.arg("code_" + String(i)));
+    }
     prefs.end();
 
-    log_i("Portal: credentials saved — rebooting");
+    log_i("Portal: %d printer(s) saved — rebooting", count);
 
     // Send response, flush TCP, then reboot
     _portal_server.send_P(200, "text/html; charset=utf-8", _PORTAL_SAVED_HTML);
@@ -529,6 +625,10 @@ static void _portal_register_routes() {
     _portal_server.on("/", HTTP_GET, []() {
         String page = _portal_build_page();
         _portal_server.send(200, "text/html; charset=utf-8", page);
+    });
+    _portal_server.on("/debug", HTTP_GET, []() {
+        String raw = _portal_build_page();
+        _portal_server.send(200, "text/plain; charset=utf-8", raw);
     });
     _portal_server.on("/save", HTTP_POST, _portal_handle_save);
     _portal_server.on("/update",      HTTP_GET,  _portal_handle_update_page);

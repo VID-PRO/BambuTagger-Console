@@ -65,6 +65,18 @@ void ScreenConfigWiFi::create(lv_obj_t *parent) {
     lv_obj_add_flag(_kb, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_event_cb(_kb, _kb_event_cb, LV_EVENT_ALL, this);
 
+    // ── Progress overlay (outside scroll area → no layout flicker) ──
+    _lbl_progress = lv_label_create(_root);
+    lv_obj_set_width(_lbl_progress, LCD_WIDTH - SIDEBAR_W - 40);
+    lv_obj_set_height(_lbl_progress, 30);
+    lv_obj_align(_lbl_progress, LV_ALIGN_BOTTOM_LEFT, 20, -68);
+    lv_obj_set_style_bg_color(_lbl_progress, COL_BG, 0);
+    lv_obj_set_style_bg_opa(_lbl_progress, LV_OPA_COVER, 0);
+    lv_obj_set_style_text_font(_lbl_progress, &lv_font_montserrat_24, 0);
+    lv_label_set_long_mode(_lbl_progress, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_label_set_text(_lbl_progress, "");
+    lv_obj_add_flag(_lbl_progress, LV_OBJ_FLAG_HIDDEN);
+
     // ── Bottom button row ─────────────────────────────────────
     // "Calibrate Touchscreen" (left)
     lv_obj_t *btn_cal = lv_btn_create(_root);
@@ -178,6 +190,18 @@ void ScreenConfigWiFi::setStatusText(const char *text, lv_color_t color) {
     if (_lbl_status) {
         lv_label_set_text(_lbl_status, text);
         lv_obj_set_style_text_color(_lbl_status, color, 0);
+    }
+}
+
+// ── Update progress overlay (outside scroll area) ──────────────
+void ScreenConfigWiFi::setProgress(const char *text, lv_color_t color) {
+    if (!_lbl_progress) return;
+    if (text && text[0]) {
+        lv_label_set_text(_lbl_progress, text);
+        lv_obj_set_style_text_color(_lbl_progress, color, 0);
+        lv_obj_clear_flag(_lbl_progress, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(_lbl_progress, LV_OBJ_FLAG_HIDDEN);
     }
 }
 

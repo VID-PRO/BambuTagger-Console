@@ -32,6 +32,9 @@ enum class PrintState {
 
 // ── Aggregated printer data ───────────────────────────────────
 struct PrinterStatus {
+    int        printer_idx = 0;
+    char       ip[24]      = {};       // printer IP address
+    char       name[32]    = {};       // display name
     PrintState state        = PrintState::UNKNOWN;
     char       state_str[16]= {};       // raw string from MQTT
     char       job_name[64] = {};       // subtask_name
@@ -75,6 +78,9 @@ public:
 
     /** Latest snapshot (always valid after first message). */
     const PrinterStatus &status() const { return _status; }
+
+    /** Serial number used for MQTT topics. */
+    const char *getSerial() const { return _serial; }
 
     /** Request a full status push from the printer. */
     void requestFullUpdate();

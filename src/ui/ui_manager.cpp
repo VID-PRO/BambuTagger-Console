@@ -9,12 +9,11 @@
 
 // ─────────────────────────────────────────────────────────────
 void UIManager::init() {
-    // Apply default dark theme
     lv_theme_t *theme = lv_theme_default_init(
         lv_disp_get_default(),
-        lv_color_hex(0x1DB954),   // primary (green)
-        lv_color_hex(0x3498DB),   // secondary (blue)
-        true,                     // dark mode
+        lv_color_hex(0x1DB954),
+        lv_color_hex(0x3498DB),
+        true,
         &lv_font_montserrat_18);
     lv_disp_set_theme(lv_disp_get_default(), theme);
 
@@ -60,12 +59,12 @@ void UIManager::init() {
         lv_label_set_text(ic, icon);
         lv_obj_set_style_text_font(ic, &lv_font_montserrat_28, 0);
         lv_obj_set_style_text_color(ic, COL_ICON, 0);
-        lv_obj_align(ic, LV_ALIGN_CENTER, 0, -10);  // shift up to make room for label
+        lv_obj_align(ic, LV_ALIGN_CENTER, 0, -10);
     };
 
-    makeSideBtn(_btn_status,  LV_SYMBOL_LIST,     0);    // Printer / status
-    makeSideBtn(_btn_printer, LV_SYMBOL_SETTINGS, 216);  // Printer config
-    makeSideBtn(_btn_wifi,    LV_SYMBOL_WIFI,     280);  // WiFi config
+    makeSideBtn(_btn_status,  LV_SYMBOL_LIST,     0);
+    makeSideBtn(_btn_printer, LV_SYMBOL_SETTINGS, 216);
+    makeSideBtn(_btn_wifi,    LV_SYMBOL_WIFI,     280);
 
     // ── Tooltip labels under icons ────────────────────────────
     auto makeTooltip = [&](lv_obj_t *btn, const char *txt) {
@@ -79,74 +78,130 @@ void UIManager::init() {
     makeTooltip(_btn_printer, "Printer");
     makeTooltip(_btn_wifi,    "WiFi");
 
-    // ── MQTT dot (above WiFi, bottom of sidebar) ─────────────
+    // ── MQTT dot ──────────────────────────────────────────────
     _lbl_mqtt_dot = lv_label_create(_sidebar);
     lv_label_set_text(_lbl_mqtt_dot, LV_SYMBOL_EYE_CLOSE);
     lv_obj_set_style_text_font(_lbl_mqtt_dot, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lbl_mqtt_dot, lv_color_hex(0xE74C3C), 0);
     lv_obj_align(_lbl_mqtt_dot, LV_ALIGN_BOTTOM_MID, 0, -40);
 
-    // ── WiFi dot (bottom of sidebar) ─────────────────────────
+    // ── WiFi dot ──────────────────────────────────────────────
     _lbl_conn_dot = lv_label_create(_sidebar);
     lv_label_set_text(_lbl_conn_dot, LV_SYMBOL_WIFI);
     lv_obj_set_style_text_font(_lbl_conn_dot, &lv_font_montserrat_20, 0);
     lv_obj_set_style_text_color(_lbl_conn_dot, lv_color_hex(0xE74C3C), 0);
     lv_obj_align(_lbl_conn_dot, LV_ALIGN_BOTTOM_MID, 0, -10);
 
-    // ── Create screens (hidden by default) ───────────────────
-    _screen_status.create(scr);
+    // ── Create screens ────────────────────────────────────────
+    _screen_overview.create(scr);
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        _screen_status[i].create(scr);
+    }
     _screen_config_printer.create(scr);
     _screen_config_wifi.create(scr);
 
-    // ── Wire up config screen navigation ──────────────────────
-    _screen_config_wifi.onCalibrate([this]() {
-        // Calibration callback will be set in main.cpp
+    // ── Wire overview card tap → show printer detail ─────────
+    _screen_overview.onPrinterTap([this](int idx) {
+        showPrinter(idx);
     });
 
-    _screen_config_printer.onSaveConnect([this]() {
-        // Connection logic will be set in main.cpp
-    });
+    // ── Wire each status screen back button ──────────────────
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        _screen_status[i].onBack([this]() {
+            showOverview();
+        });
+    }
 
-    showScreen(ActiveScreen::STATUS);
+    showOverview();
 }
 
 // ─────────────────────────────────────────────────────────────
 void UIManager::showScreen(ActiveScreen s) {
     _active = s;
 
-    // Hide all screens first
-    lv_obj_add_flag(_screen_status.root(), LV_OBJ_FLAG_HIDDEN);
+    // Hide all screens
+    lv_obj_add_flag(_screen_overview.root(), LV_OBJ_FLAG_HIDDEN);
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        lv_obj_add_flag(_screen_status[i].root(), LV_OBJ_FLAG_HIDDEN);
+    }
     lv_obj_add_flag(_screen_config_printer.root(), LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(_screen_config_wifi.root(), LV_OBJ_FLAG_HIDDEN);
 
-    // Show/hide screens and update button states
-    if (s == ActiveScreen::STATUS) {
-        lv_obj_clear_flag(_screen_status.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_ACTIVE, 0);
-        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_IDLE,   0);
-        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_IDLE,   0);
-    } else if (s == ActiveScreen::CONFIG_WIFI) {
-        lv_obj_clear_flag(_screen_config_wifi.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_IDLE,   0);
-        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_ACTIVE, 0);
-        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_IDLE,   0);
-    } else if (s == ActiveScreen::CONFIG_PRINTER) {
-        lv_obj_clear_flag(_screen_config_printer.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_IDLE,   0);
-        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_IDLE,   0);
-        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_ACTIVE, 0);
+    // Reset button styles
+    lv_obj_set_style_bg_color(_btn_status,  COL_BTN_IDLE, 0);
+    lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_IDLE, 0);
+    lv_obj_set_style_bg_color(_btn_printer, COL_BTN_IDLE, 0);
+
+    switch (s) {
+        case ActiveScreen::OVERVIEW:
+            _screen_overview.setNumPrinters(_num_printers);
+            lv_obj_clear_flag(_screen_overview.root(), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(_btn_status, COL_BTN_ACTIVE, 0);
+            break;
+
+        case ActiveScreen::PRINTER_0:
+        case ActiveScreen::PRINTER_1:
+        case ActiveScreen::PRINTER_2:
+        case ActiveScreen::PRINTER_3: {
+            int pi = (int)s - (int)ActiveScreen::PRINTER_0;
+            if (pi >= 0 && pi < MAX_PRINTERS) {
+                _active_printer = pi;
+                _screen_status[pi].setShowBack(_num_printers > 1);
+                lv_obj_clear_flag(_screen_status[pi].root(), LV_OBJ_FLAG_HIDDEN);
+            }
+            lv_obj_set_style_bg_color(_btn_status, COL_BTN_ACTIVE, 0);
+            break;
+        }
+
+        case ActiveScreen::CONFIG_WIFI:
+            lv_obj_clear_flag(_screen_config_wifi.root(), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(_btn_wifi, COL_BTN_ACTIVE, 0);
+            break;
+
+        case ActiveScreen::CONFIG_PRINTER:
+            lv_obj_clear_flag(_screen_config_printer.root(), LV_OBJ_FLAG_HIDDEN);
+            lv_obj_set_style_bg_color(_btn_printer, COL_BTN_ACTIVE, 0);
+            break;
     }
 }
 
 // ─────────────────────────────────────────────────────────────
-void UIManager::updateStatus(const PrinterStatus &s) {
-    _screen_status.update(s);
+void UIManager::showOverview() {
+    if (_num_printers == 1) {
+        showPrinter(0);
+        return;
+    }
+    showScreen(ActiveScreen::OVERVIEW);
 }
 
-void UIManager::setThumbnail(const lv_img_dsc_t *dsc) {
-    _screen_status.setThumbnail(dsc);
+void UIManager::showPrinter(int idx) {
+    if (idx < 0 || idx >= MAX_PRINTERS) return;
+    ActiveScreen s = (ActiveScreen)((int)ActiveScreen::PRINTER_0 + idx);
+    showScreen(s);
 }
 
+// ─────────────────────────────────────────────────────────────
+void UIManager::setNumPrinters(int n) {
+    _num_printers = n;
+    _screen_overview.setNumPrinters(n);
+    if (n > 1) showOverview();
+}
+
+// ─────────────────────────────────────────────────────────────
+void UIManager::updateStatus(int idx, const PrinterStatus &s) {
+    if (idx < 0 || idx >= MAX_PRINTERS) return;
+    _screen_overview.updateCard(idx, s);
+    _screen_status[idx].update(s);
+}
+
+// ─────────────────────────────────────────────────────────────
+void UIManager::setThumbnail(int idx, const lv_img_dsc_t *dsc) {
+    if (idx >= 0 && idx < MAX_PRINTERS) {
+        _screen_status[idx].setThumbnail(dsc);
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
 void UIManager::setConnecting(bool connecting) {
     lv_obj_set_style_text_color(
         _lbl_conn_dot,
@@ -160,9 +215,8 @@ void UIManager::setMqttConnected(bool connected) {
         connected ? lv_color_hex(0x1DB954) : lv_color_hex(0xE74C3C),
         0);
     lv_label_set_text(
-        _lbl_mqtt_dot, 
-        connected ? LV_SYMBOL_EYE_OPEN : LV_SYMBOL_EYE_CLOSE
-    );
+        _lbl_mqtt_dot,
+        connected ? LV_SYMBOL_EYE_OPEN : LV_SYMBOL_EYE_CLOSE);
 }
 
 // ── Sidebar button click ──────────────────────────────────────
@@ -171,7 +225,7 @@ void UIManager::_sidebar_btn_cb(lv_event_t *e) {
     lv_obj_t *btn = lv_event_get_target(e);
 
     if (btn == self->_btn_status) {
-        self->showScreen(ActiveScreen::STATUS);
+        self->showOverview();
     } else if (btn == self->_btn_wifi) {
         self->showScreen(ActiveScreen::CONFIG_WIFI);
     } else if (btn == self->_btn_printer) {

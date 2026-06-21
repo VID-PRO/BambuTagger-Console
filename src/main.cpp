@@ -40,8 +40,8 @@ static bool g_portal_mode = false;
 
 // ── Global objects ────────────────────────────────────────────
 static UIManager      g_ui;
-static BambuClient    g_bambu;
-static FtpsClient      g_ftp;
+static BambuClient    g_bambu[MAX_PRINTERS];
+static FtpsClient     g_ftp[MAX_PRINTERS];
 
 // Thumbnail state (written by FTP task, read by LVGL task)
 static SemaphoreHandle_t g_thumb_mutex = nullptr;
@@ -50,13 +50,13 @@ static size_t             g_thumb_sz   = 0;
 static lv_img_dsc_t       g_thumb_dsc  = {};
 static uint8_t           *g_thumb_rgb  = nullptr;   // decoded RGB565 in PSRAM
 static bool               g_thumb_ready= false;     // new frame available
+static int                g_thumb_ready_pi = -1;    // printer index for ready frame
 
 // Credentials (loaded from NVS)
 static char g_wifi_ssid[64]  = DEFAULT_WIFI_SSID;
 static char g_wifi_pass[64]  = DEFAULT_WIFI_PASSWORD;
-static char g_bam_ip[24]     = DEFAULT_BAMBU_IP;
-static char g_bam_serial[32] = DEFAULT_BAMBU_SERIAL;
-static char g_bam_code[16]   = DEFAULT_BAMBU_CODE;
+static PrinterConfig g_printer_cfg[MAX_PRINTERS];
+static int g_printer_count   = 0;
 
 // ── LVGL mutex (guards lv_* calls from multiple cores) ────────
 SemaphoreHandle_t g_lv_mutex = nullptr;
@@ -70,14 +70,39 @@ SemaphoreHandle_t g_lv_mutex = nullptr;
 static void loadCredentials() {
     Preferences prefs;
     prefs.begin("bambu_mon", true);
+
     if (prefs.isKey("wifi_ssid")) {
         prefs.getString("wifi_ssid",  g_wifi_ssid,  sizeof(g_wifi_ssid));
         prefs.getString("wifi_pass",  g_wifi_pass,  sizeof(g_wifi_pass));
-        prefs.getString("bam_ip",     g_bam_ip,     sizeof(g_bam_ip));
-        prefs.getString("bam_serial", g_bam_serial, sizeof(g_bam_serial));
-        prefs.getString("bam_code",   g_bam_code,   sizeof(g_bam_code));
+    }
+
+    g_printer_count = prefs.getInt("bam_count", 0);
+    if (g_printer_count == 0) {
+        if (prefs.isKey("bam_ip")) {
+            prefs.getString("bam_ip",     g_printer_cfg[0].ip,     sizeof(g_printer_cfg[0].ip));
+            prefs.getString("bam_serial", g_printer_cfg[0].serial, sizeof(g_printer_cfg[0].serial));
+            prefs.getString("bam_code",   g_printer_cfg[0].code,   sizeof(g_printer_cfg[0].code));
+            g_printer_count = 1;
+        }
+    } else {
+        for (int i = 0; i < g_printer_count && i < MAX_PRINTERS; i++) {
+            char key[16];
+            snprintf(key, sizeof(key), "bam_ip_%d", i);
+            prefs.getString(key, g_printer_cfg[i].ip, sizeof(g_printer_cfg[i].ip));
+            snprintf(key, sizeof(key), "bam_serial_%d", i);
+            prefs.getString(key, g_printer_cfg[i].serial, sizeof(g_printer_cfg[i].serial));
+            snprintf(key, sizeof(key), "bam_code_%d", i);
+            prefs.getString(key, g_printer_cfg[i].code, sizeof(g_printer_cfg[i].code));
+        }
     }
     prefs.end();
+
+    if (g_printer_count == 0) {
+        strncpy(g_printer_cfg[0].ip,     DEFAULT_BAMBU_IP,     sizeof(g_printer_cfg[0].ip) - 1);
+        strncpy(g_printer_cfg[0].serial, DEFAULT_BAMBU_SERIAL, sizeof(g_printer_cfg[0].serial) - 1);
+        strncpy(g_printer_cfg[0].code,   DEFAULT_BAMBU_CODE,   sizeof(g_printer_cfg[0].code) - 1);
+        g_printer_count = 1;
+    }
 }
 
 static void connectWifi() {
@@ -102,50 +127,53 @@ static void connectWifi() {
 
 static void reconnectAll() {
     if (WiFi.status() != WL_CONNECTED) connectWifi();
-    g_bambu.begin(g_bam_ip, g_bam_serial, g_bam_code);
-    g_ftp.begin(g_bam_ip, g_bam_code);
+    for (int i = 0; i < g_printer_count; i++) {
+        g_bambu[i].begin(g_printer_cfg[i].ip, g_printer_cfg[i].serial, g_printer_cfg[i].code);
+        g_ftp[i].begin(g_printer_cfg[i].ip, g_printer_cfg[i].code);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────
-// Thumbnail fetch task (runs on Core 1, triggered by flag)
+// Thumbnail fetch task (runs on Core 1)
 // ─────────────────────────────────────────────────────────────
-static TaskHandle_t g_thumb_task_handle = nullptr;
-static char         g_thumb_job[64]      = {};
-static char         g_thumb_gcode[128]   = {};
+struct ThumbRequest {
+    int   printer;
+    char  job[64];
+    char  gcode[128];
+};
+
+static QueueHandle_t    g_thumb_queue          = nullptr;
+static TaskHandle_t     g_thumb_task_handle    = nullptr;
 
 static void thumbTask(void *param) {
+    ThumbRequest req;
     for (;;) {
-        // Wait for a signal (notified when a new job starts)
-        ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+        if (xQueueReceive(g_thumb_queue, &req, portMAX_DELAY) != pdTRUE) continue;
 
-        log_i("Fetching thumbnail for: %s", g_thumb_job);
+        log_i("Fetching thumbnail for printer %d: %s", req.printer, req.job);
 
-        // Allocate JPEG buffer if needed
         if (!g_thumb_buf) {
-            g_thumb_buf = (uint8_t *)ps_malloc(256 * 1024); // 256 KB
+            g_thumb_buf = (uint8_t *)ps_malloc(256 * 1024);
             if (!g_thumb_buf) { log_e("ps_malloc thumb_buf failed"); continue; }
         }
 
-        size_t png_sz = g_ftp.downloadThumbnail(g_thumb_job, g_thumb_gcode, g_thumb_buf, 256*1024);
+        size_t png_sz = g_ftp[req.printer].downloadThumbnail(req.job, req.gcode, g_thumb_buf, 256*1024);
         if (png_sz == 0) {
             log_w("Thumbnail download failed, showing placeholder");
             LV_LOCK();
-            g_ui.statusScreen().clearThumbnail();
+            g_ui.statusScreen(req.printer).clearThumbnail();
             LV_UNLOCK();
             continue;
         }
-        // Decode PNG to RGB565 via LovyanGFX
         if (!g_thumb_rgb) {
             g_thumb_rgb = (uint8_t *)ps_malloc(THUMB_W * THUMB_H * 2);
             if (!g_thumb_rgb) { log_e("ps_malloc thumb_rgb failed"); continue; }
         }
 
-        // Use LGFX sprite as intermediate decoder (PSRAM for pixel buffer)
         lgfx::LGFX_Sprite sprite(&lcd);
         sprite.setColorDepth(16);
-        sprite.setPsram(true);   // allocate 240×240×2=115 KB from PSRAM, not DMA heap
+        sprite.setPsram(true);
         if (sprite.createSprite(THUMB_W, THUMB_H)) {
-            // Read PNG dimensions from IHDR (bytes 16-23, big-endian)
             float scale = 1.0f;
             if (png_sz >= 24) {
                 uint32_t png_w = ((uint32_t)g_thumb_buf[16]<<24)|((uint32_t)g_thumb_buf[17]<<16)
@@ -155,17 +183,14 @@ static void thumbTask(void *param) {
                 if (png_w > 0 && png_h > 0) {
                     float sx = (float)THUMB_W / png_w;
                     float sy = (float)THUMB_H / png_h;
-                    scale = (sx < sy) ? sx : sy;   // fit, keep aspect ratio
+                    scale = (sx < sy) ? sx : sy;
                 }
-                log_i("PNG size %ux%u → scale %.3f → sprite %dx%d", png_w, png_h, scale, THUMB_W, THUMB_H);
             }
             sprite.drawPng(g_thumb_buf, png_sz, 0, 0, THUMB_W, THUMB_H,
                            0, 0, scale, scale, lgfx::datum_t::middle_center);
-            // Read back RGB565
             sprite.readRect(0, 0, THUMB_W, THUMB_H, (lgfx::rgb565_t *)g_thumb_rgb);
             sprite.deleteSprite();
 
-            // Build LVGL image descriptor
             g_thumb_dsc.header.always_zero = 0;
             g_thumb_dsc.header.w           = THUMB_W;
             g_thumb_dsc.header.h           = THUMB_H;
@@ -175,6 +200,7 @@ static void thumbTask(void *param) {
 
             xSemaphoreTake(g_thumb_mutex, portMAX_DELAY);
             g_thumb_ready = true;
+            g_thumb_ready_pi = req.printer;
             xSemaphoreGive(g_thumb_mutex);
         } else {
             log_e("Sprite alloc failed for thumbnail decode");
@@ -189,60 +215,72 @@ static void networkTask(void *param) {
     loadCredentials();
     connectWifi();
 
-    // Configure Bambu client
-    g_bambu.onStatus([](const PrinterStatus &s) {
-        // Update UI (LVGL must be locked)
-        LV_LOCK();
-        g_ui.updateStatus(s);
-        LV_UNLOCK();
-
-        // New job → trigger thumbnail fetch
-        if (s.fresh_thumb && strlen(s.job_name) > 0) {
-            strncpy(g_thumb_job,   s.job_name,   sizeof(g_thumb_job)   - 1);
-            strncpy(g_thumb_gcode, s.gcode_file, sizeof(g_thumb_gcode) - 1);
-            // Const cast is safe here; notify does not modify status
-            ((PrinterStatus &)s).fresh_thumb = false;
-            if (g_thumb_task_handle) {
-                xTaskNotifyGive(g_thumb_task_handle);
+    // Configure per-printer status callbacks & start connections
+    for (int i = 0; i < g_printer_count; i++) {
+        g_bambu[i].onStatus([i](const PrinterStatus &s) {
+            // Fill in printer index for the UI
+            PrinterStatus sc = s;
+            sc.printer_idx = i;
+            {
+                const char *ser = g_bambu[i].getSerial();
+                size_t slen = strlen(ser);
+                snprintf(sc.name, sizeof(sc.name), "3DP-%.3s-%.3s",
+                         ser, slen >= 3 ? ser + slen - 3 : ser);
             }
+            LV_LOCK();
+            g_ui.updateStatus(i, sc);
+            LV_UNLOCK();
+
+            if (s.fresh_thumb && strlen(s.job_name) > 0) {
+                log_i("MQTT thumb trigger printer=%d job=%s", i, s.job_name);
+                if (g_thumb_queue) {
+                    ThumbRequest req;
+                    req.printer = i;
+                    strncpy(req.job,   s.job_name,   sizeof(req.job)   - 1);
+                    strncpy(req.gcode, s.gcode_file, sizeof(req.gcode) - 1);
+                    BaseType_t qok = xQueueSend(g_thumb_queue, &req, 0);
+                    if (qok != pdTRUE) log_w("thumb queue FULL, dropping request");
+                }
+                ((PrinterStatus &)s).fresh_thumb = false;
+            }
+        });
+        g_bambu[i].begin(g_printer_cfg[i].ip, g_printer_cfg[i].serial, g_printer_cfg[i].code);
+        g_ftp[i].begin(g_printer_cfg[i].ip, g_printer_cfg[i].code);
+        {
+            char name[32];
+            snprintf(name, sizeof(name), "Printer %d", i + 1);
+            LV_LOCK();
+            g_ui.statusScreen(i).setPrinterName(name);
+            LV_UNLOCK();
         }
-    });
-
-    g_bambu.begin(g_bam_ip, g_bam_serial, g_bam_code);
-    g_ftp.begin(g_bam_ip, g_bam_code);
-
-    // Register "save & connect" callback from config screen
-    // (already wired in setup via g_ui.onConnect)
+    }
 
     LV_LOCK();
-    // Pre-fill config screens with current credentials
     g_ui.configWifiScreen().loadValues(g_wifi_ssid, g_wifi_pass);
-    g_ui.configPrinterScreen().loadValues(g_bam_ip, g_bam_serial, g_bam_code);
+    g_ui.configPrinterScreen().loadValues(g_printer_cfg, g_printer_count);
+    g_ui.setNumPrinters(g_printer_count);
     LV_UNLOCK();
 
-    // Track last-known indicator state to avoid spamming LVGL
     bool last_wifi_ok = false;
     bool last_mqtt_ok = false;
 
     for (;;) {
-        // Keep WiFi alive
-        if (WiFi.status() != WL_CONNECTED) {
-            connectWifi();  // sets icon orange→green internally
+        if (WiFi.status() != WL_CONNECTED) connectWifi();
+
+        bool any_mqtt = false;
+        for (int i = 0; i < g_printer_count; i++) {
+            g_bambu[i].loop();
+            if (g_bambu[i].isConnected()) any_mqtt = true;
         }
 
-        g_bambu.loop();
-
-        // Only touch LVGL when the indicator state actually changes —
-        // prevents constant lock contention that causes screen flicker.
         bool wifi_ok = (WiFi.status() == WL_CONNECTED);
-        bool mqtt_ok = g_bambu.isConnected();
-        if (wifi_ok != last_wifi_ok || mqtt_ok != last_mqtt_ok) {
+        if (wifi_ok != last_wifi_ok || any_mqtt != last_mqtt_ok) {
             LV_LOCK();
             g_ui.setConnecting(!wifi_ok);
-            g_ui.setMqttConnected(mqtt_ok);
+            g_ui.setMqttConnected(any_mqtt);
             LV_UNLOCK();
             last_wifi_ok = wifi_ok;
-            last_mqtt_ok = mqtt_ok;
+            last_mqtt_ok = any_mqtt;
         }
 
         vTaskDelay(pdMS_TO_TICKS(20));
@@ -345,10 +383,13 @@ void setup() {
     // Build UI
     g_ui.init();
 
-    // Wire print control buttons (touch → MQTT command)
-    g_ui.statusScreen().onPause ([]() { g_bambu.pause();  });
-    g_ui.statusScreen().onResume([]() { g_bambu.resume(); });
-    g_ui.statusScreen().onStop  ([]() { g_bambu.stop();   });
+    // Wire print control buttons (touch → MQTT command) for each printer
+    for (int i = 0; i < MAX_PRINTERS; i++) {
+        int pi = i;
+        g_ui.statusScreen(i).onPause ([pi]() { g_bambu[pi].pause();  });
+        g_ui.statusScreen(i).onResume([pi]() { g_bambu[pi].resume(); });
+        g_ui.statusScreen(i).onStop  ([pi]() { g_bambu[pi].stop();   });
+    }
 
     // Wire calibrate button from WiFi config screen
     g_ui.onCalibrateWiFi([]() { g_run_calibration = true; });
@@ -374,21 +415,15 @@ void setup() {
 
     // Wire config "save & connect" button from printer config screen
     g_ui.onSaveConnectPrinter([]() {
-        // Read new values from NVS (already written by screen_config_printer)
-        Preferences prefs;
-        prefs.begin("bambu_mon", true);
-        prefs.getString("wifi_ssid",  g_wifi_ssid,  sizeof(g_wifi_ssid));
-        prefs.getString("wifi_pass",  g_wifi_pass,  sizeof(g_wifi_pass));
-        prefs.getString("bam_ip",     g_bam_ip,     sizeof(g_bam_ip));
-        prefs.getString("bam_serial", g_bam_serial, sizeof(g_bam_serial));
-        prefs.getString("bam_code",   g_bam_code,   sizeof(g_bam_code));
-        prefs.end();
-        // Reconnect with new settings
+        loadCredentials();
         reconnectAll();
-        g_ui.showScreen(ActiveScreen::STATUS);
+        g_ui.showOverview();
+        g_ui.setNumPrinters(g_printer_count);
     });
 
     // Spawn network task on Core 1
+    g_thumb_queue = xQueueCreate(8, sizeof(ThumbRequest));
+
     xTaskCreatePinnedToCore(networkTask, "network", 12288, nullptr, 2, nullptr, 1);
 
     // Spawn thumbnail task on Core 1
@@ -429,15 +464,20 @@ void loop() {
 
     // Push decoded thumbnail if ready
     bool thumb_ready = false;
+    int  thumb_pi    = -1;
     xSemaphoreTake(g_thumb_mutex, portMAX_DELAY);
     if (g_thumb_ready) {
         thumb_ready   = true;
+        thumb_pi      = g_thumb_ready_pi;
         g_thumb_ready = false;
+        g_thumb_ready_pi = -1;
     }
     xSemaphoreGive(g_thumb_mutex);
 
-    if (thumb_ready) {
-        g_ui.setThumbnail(&g_thumb_dsc);
+    if (thumb_ready && thumb_pi >= 0) {
+        log_i("Pushing thumb to screens printer=%d", thumb_pi);
+        g_ui.statusScreen(thumb_pi).setThumbnail(&g_thumb_dsc);
+        g_ui.overviewScreen().setThumbnail(thumb_pi, &g_thumb_dsc);
     }
 
     lv_timer_handler();

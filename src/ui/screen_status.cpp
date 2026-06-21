@@ -61,17 +61,43 @@ void ScreenStatus::create(lv_obj_t *parent) {
     lv_obj_align(hdr, LV_ALIGN_TOP_LEFT, 0, 0);
     lv_obj_set_style_bg_color(hdr, COL_CARD, 0);
     lv_obj_set_style_border_width(hdr, 0, 0);
-    lv_obj_set_style_pad_left(hdr, 16, 0);
+    lv_obj_set_style_pad_left(hdr, 8, 0);
     lv_obj_set_style_pad_right(hdr, 16, 0);
     lv_obj_clear_flag(hdr, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Back button (hidden by default, shown when viewed from overview)
+    _btn_back = lv_btn_create(hdr);
+    lv_obj_set_size(_btn_back, 44, 44);
+    lv_obj_align(_btn_back, LV_ALIGN_LEFT_MID, 6, 0);
+    lv_obj_set_style_bg_color(_btn_back, lv_color_hex(0x334155), 0);
+    lv_obj_set_style_radius(_btn_back, 8, 0);
+    lv_obj_set_style_border_width(_btn_back, 0, 0);
+    lv_obj_set_style_shadow_width(_btn_back, 0, 0);
+    lv_obj_add_event_cb(_btn_back, _back_btn_cb, LV_EVENT_CLICKED, this);
+    lv_obj_add_flag(_btn_back, LV_OBJ_FLAG_HIDDEN);
+
+    lv_obj_t *back_lbl = lv_label_create(_btn_back);
+    lv_label_set_text(back_lbl, LV_SYMBOL_PREV);
+    lv_obj_set_style_text_font(back_lbl, &lv_font_montserrat_24, 0);
+    lv_obj_set_style_text_color(back_lbl, COL_TEXT, 0);
+    lv_obj_center(back_lbl);
+
+    // Printer name/IP label (to the right of back button)
+    _lbl_printer = lv_label_create(hdr);
+    lv_obj_set_style_text_font(_lbl_printer, &lv_font_montserrat_20, 0);
+    lv_obj_set_style_text_color(_lbl_printer, lv_color_hex(0x8899AA), 0);
+    lv_obj_align(_lbl_printer, LV_ALIGN_LEFT_MID, 56, 0);
+    lv_label_set_long_mode(_lbl_printer, LV_LABEL_LONG_DOT);
+    lv_obj_set_width(_lbl_printer, 140);
+    lv_label_set_text(_lbl_printer, "");
 
     _lbl_job = lv_label_create(hdr);
     lv_obj_set_style_text_font(_lbl_job, &lv_font_montserrat_24, 0);
     lv_obj_set_style_text_color(_lbl_job, COL_TEXT, 0);
     lv_label_set_text(_lbl_job, "No active print");
-    lv_obj_align(_lbl_job, LV_ALIGN_LEFT_MID, 0, 0);
+    lv_obj_align(_lbl_job, LV_ALIGN_LEFT_MID, 200, 0);
     lv_label_set_long_mode(_lbl_job, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(_lbl_job, 380);
+    lv_obj_set_width(_lbl_job, 290);
 
     _lbl_state = lv_label_create(hdr);
     lv_obj_set_style_text_font(_lbl_state, &lv_font_montserrat_24, 0);
@@ -229,6 +255,13 @@ void ScreenStatus::_applyBadgeStyle(PrintState state) {
 
 // ─────────────────────────────────────────────────────────────
 void ScreenStatus::update(const PrinterStatus &s) {
+    // Back button visibility
+    if (_show_back && _btn_back) lv_obj_clear_flag(_btn_back, LV_OBJ_FLAG_HIDDEN);
+    else if (_btn_back)          lv_obj_add_flag(_btn_back, LV_OBJ_FLAG_HIDDEN);
+
+    // Printer name from status
+    if (strlen(s.name) > 0) setPrinterName(s.name);
+
     // Hide "connecting" overlay
     lv_obj_add_flag(_lbl_noconn, LV_OBJ_FLAG_HIDDEN);
 
@@ -333,4 +366,16 @@ void ScreenStatus::_pause_btn_cb(lv_event_t *e) {
 void ScreenStatus::_stop_btn_cb(lv_event_t *e) {
     auto *self = (ScreenStatus *)lv_event_get_user_data(e);
     if (self->_stop_cb) self->_stop_cb();
+}
+
+// ── Back button handler ────────────────────────────────────────
+void ScreenStatus::_back_btn_cb(lv_event_t *e) {
+    if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
+    auto *self = (ScreenStatus *)lv_event_get_user_data(e);
+    if (self->_back_cb) self->_back_cb();
+}
+
+// ── Set printer name/IP in header ─────────────────────────────
+void ScreenStatus::setPrinterName(const char *name) {
+    if (_lbl_printer) lv_label_set_text(_lbl_printer, name);
 }

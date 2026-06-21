@@ -9,22 +9,23 @@
 
 // -- Version info ----------------------------------------------
 #define APP_NAME    "BambuTagger-Console"
-#define APP_VERSION "1.1.0"
+#define APP_VERSION "1.2.0"
 
 // ── WiFi ──────────────────────────────────────────────────────
 #define DEFAULT_WIFI_SSID     "YourWiFiSSID"
 #define DEFAULT_WIFI_PASSWORD "YourWiFiPassword"
 
-// ── Bambu Lab Printer ─────────────────────────────────────────
-// IP of the printer on your local network
+// ── Printers ──────────────────────────────────────────────────
+#define MAX_PRINTERS  4
+
+struct PrinterConfig {
+    char ip[24]     = {};
+    char serial[32] = {};
+    char code[16]   = {};
+};
+
 #define DEFAULT_BAMBU_IP      "192.168.1.100"
-
-// Serial number shown on the printer's touchscreen → Settings → About
-// Example: "01S00C123456789"  (X1C) or "01P00A123456789" (P1S)
 #define DEFAULT_BAMBU_SERIAL  "01S00C123456789"
-
-// Access code shown on the printer's touchscreen → Settings → Network
-// (8-digit number)
 #define DEFAULT_BAMBU_CODE    "12345678"
 
 // ── MQTT (do not change unless you know what you're doing) ────

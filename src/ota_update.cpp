@@ -48,6 +48,13 @@ static void _set_status(ScreenConfigWiFi *screen, const char *txt, uint32_t colo
     LV_UNLOCK();
 }
 
+// Update the progress overlay (outside scroll container — no layout flicker)
+static void _set_progress(ScreenConfigWiFi *screen, const char *txt, uint32_t color) {
+    LV_LOCK();
+    screen->setProgress(txt, lv_color_hex(color));
+    LV_UNLOCK();
+}
+
 // ── OTA task ──────────────────────────────────────────────────
 void ota_task(void *param) {
     ScreenConfigWiFi *screen = (ScreenConfigWiFi *)param;
@@ -129,7 +136,7 @@ void ota_task(void *param) {
     } // WiFiClientSecure client + HTTPClient http destroyed here
 
     // ── 4. Download binary (fresh SSL context) ─────────────────
-    _set_status(screen, "Downloading firmware…", 0x90CAF9);
+    _set_progress(screen, "Downloading firmware…", 0x90CAF9);
 
     {
         WiFiClientSecure client2;
@@ -190,13 +197,14 @@ void ota_task(void *param) {
                         last_pct = pct;
                         char msg[48];
                         snprintf(msg, sizeof(msg), "Downloading… %d%%", pct);
-                        _set_status(screen, msg, 0x90CAF9);
+                        _set_progress(screen, msg, 0x90CAF9);
                     }
                 }
             }
             vTaskDelay(pdMS_TO_TICKS(10));
         }
         http2.end();
+        _set_progress(screen, "", 0);       // hide progress overlay
 
         // ── 5. Finish update ──────────────────────────────────
         if (!Update.end(true)) {
