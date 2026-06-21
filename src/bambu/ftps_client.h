@@ -4,21 +4,38 @@
  *
  * Minimal implicit-FTPS client for downloading Bambu Lab printer thumbnails.
  *
- * The thumbnail is embedded inside the .3mf job file as Metadata/thumbnail.png
- * (the .3mf is a ZIP archive). We stream-parse the ZIP local-file-header chain
- * until the thumbnail entry is found, then inflate it with zlib raw-deflate.
+ * TLS strategy — ctrl + data session sharing via raw mbedTLS:
  *
- * Connection strategy — keep ctrl alive while data channel is open:
- *   1. Control TLS: login, PROT P, PASV, RETR/LIST (ctrl stays alive)
- *   2. Data TLS: connect to PASV address → wait for 150 on ctrl → read data
- *   3. After data closes: drain 226/error from ctrl → ctrl ready for next command
+ *   Control channel: BambuTlsClient — full TLS handshake → session saved
+ *   Data channel:    BambuTlsClient — TLS handshake with session RESUMED
  *
- * NOTE: freeing ctrl BEFORE connecting data causes the Bambu server to abort
- * the pending transfer (it sees the control connection close as an abort signal).
- * ESP32-S3 + PSRAM can hold two simultaneous TLS contexts without issue.
+ * Why session resumption matters:
+ *   Bambu's proftpd mandates "session reuse" (RFC 4217 §9): the data channel
+ *   TLS handshake must present the same session ID as the control channel.
+ *   If it doesn't, the server returns "522 SSL connection failed: session
+ *   reuse required" and drops the data connection.
+ *
+ *   WiFiClientSecure (Arduino ESP32 3.x) no longer exposes SSLSession /
+ *   setSession(), so we use mbedTLS directly via BambuTlsClient which gives
+ *   us mbedtls_ssl_get_session() / mbedtls_ssl_set_session().
+ *
+ * Why PSRAM for the data channel:
+ *   Two simultaneous mbedTLS sessions would OOM internal SRAM (~40 KB each).
+ *   BambuTlsClient::connect(..., use_psram=true) redirects all mbedTLS heap
+ *   allocations to the 8 MB PSRAM for the duration of the data handshake.
+ *
+ * Transfer flow:
+ *   1. CWD <dir>           (ctrl TLS)
+ *   2. PASV                (ctrl TLS) → data ip:port
+ *   3. RETR / LIST         (ctrl TLS) — don't read reply yet
+ *   4. BambuTlsClient connect to data ip:port, resuming ctrl session
+ *   5. Wait for 150/125 on ctrl
+ *   6. Read data from data TLS channel
+ *   7. Drain 226 from ctrl
  */
 
-#include <WiFiClientSecure.h>
+#include "bambu_tls_client.h"
+#include "mbedtls/ssl.h"
 
 static const int TIMEOUT_MS = 8000;
 
@@ -33,19 +50,31 @@ public:
 private:
     char              _ip[40]   = {};
     char              _code[64] = {};
-    WiFiClientSecure *_ctrl     = nullptr;
 
-    bool              _connectControl();
-    bool              _ensureControl();
-    bool              _login();
-    bool              _sendCmd(const char *cmd, int expected_code,
-                               char *reply = nullptr, size_t reply_sz = 0);
-    bool              _parsePasv(const char *reply, char *data_ip, uint16_t &data_port);
-    void              _drainCtrl(uint32_t timeout_ms = 3000);  // consume 226/error after transfer
-    WiFiClientSecure *_openData(const char *retr_path);        // heap-alloc; caller deletes
-    size_t            _downloadFile(const char *path, uint8_t *buf, size_t max_bytes);
-    size_t            _extractFromMf(const char *path, uint8_t *out_buf, size_t max_bytes);
-    void              _listDir(const char *dir);               // logs directory contents
-    void              _disconnect();
-    void              _freeCtrl();
+    // ── Ctrl channel ─────────────────────────────────────────────────────────
+    BambuTlsClient   *_ctrl        = nullptr;
+
+    // ── Shared TLS session ────────────────────────────────────────────────────
+    // Saved from _ctrl after every successful handshake.
+    // Passed to every data-channel BambuTlsClient::connect() so it can present
+    // the same session ID in its ClientHello → satisfies "session reuse required".
+    mbedtls_ssl_session _session   = {};
+    bool                _has_session = false;
+
+    bool   _connectControl();
+    bool   _ensureControl();
+    bool   _login();
+    bool   _sendCmd(const char *cmd, int expected_code,
+                    char *reply = nullptr, size_t reply_sz = 0);
+    bool   _parsePasv(const char *reply, char *data_ip, uint16_t &data_port);
+    void   _drainCtrl(uint32_t timeout_ms = 3000);
+
+    // Returns a connected BambuTlsClient* (caller must delete); nullptr on error.
+    BambuTlsClient *_openData(const char *retr_path);
+
+    size_t _downloadFile(const char *path, uint8_t *buf, size_t max_bytes);
+    size_t _extractFromMf(const char *path, uint8_t *out_buf, size_t max_bytes);
+    void   _listDir(const char *dir);
+    void   _disconnect();
+    void   _freeCtrl();
 };

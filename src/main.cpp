@@ -139,12 +139,27 @@ static void thumbTask(void *param) {
             if (!g_thumb_rgb) { log_e("ps_malloc thumb_rgb failed"); continue; }
         }
 
-        // Use LGFX sprite as intermediate decoder
+        // Use LGFX sprite as intermediate decoder (PSRAM for pixel buffer)
         lgfx::LGFX_Sprite sprite(&lcd);
         sprite.setColorDepth(16);
+        sprite.setPsram(true);   // allocate 240×240×2=115 KB from PSRAM, not DMA heap
         if (sprite.createSprite(THUMB_W, THUMB_H)) {
+            // Read PNG dimensions from IHDR (bytes 16-23, big-endian)
+            float scale = 1.0f;
+            if (png_sz >= 24) {
+                uint32_t png_w = ((uint32_t)g_thumb_buf[16]<<24)|((uint32_t)g_thumb_buf[17]<<16)
+                                |((uint32_t)g_thumb_buf[18]<<8)|g_thumb_buf[19];
+                uint32_t png_h = ((uint32_t)g_thumb_buf[20]<<24)|((uint32_t)g_thumb_buf[21]<<16)
+                                |((uint32_t)g_thumb_buf[22]<<8)|g_thumb_buf[23];
+                if (png_w > 0 && png_h > 0) {
+                    float sx = (float)THUMB_W / png_w;
+                    float sy = (float)THUMB_H / png_h;
+                    scale = (sx < sy) ? sx : sy;   // fit, keep aspect ratio
+                }
+                log_i("PNG size %ux%u → scale %.3f → sprite %dx%d", png_w, png_h, scale, THUMB_W, THUMB_H);
+            }
             sprite.drawPng(g_thumb_buf, png_sz, 0, 0, THUMB_W, THUMB_H,
-                           0, 0, 1.0f, 1.0f, lgfx::datum_t::middle_center);
+                           0, 0, scale, scale, lgfx::datum_t::middle_center);
             // Read back RGB565
             sprite.readRect(0, 0, THUMB_W, THUMB_H, (lgfx::rgb565_t *)g_thumb_rgb);
             sprite.deleteSprite();

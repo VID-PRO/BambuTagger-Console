@@ -1,0 +1,20 @@
+# sdkconfig.defaults — BambuTagger-Console
+#
+# Reduce mbedTLS per-session buffer sizes so two simultaneous TLS sessions
+# (FTPS control + FTPS data with PROT P) both fit in ESP32-S3 internal heap.
+#
+# Default CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN  = 16384  (16 KB per session)
+# Default CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN = 16384  (16 KB per session)
+#   → Two sessions = 64 KB of I/O buffers alone → MBEDTLS_ERR_SSL_ALLOC_FAILED
+#
+# 4096 bytes is sufficient for FTP: control channel commands are tiny (<256 B),
+# and data channel TLS records are ≤ 4096 B in practice for this server.
+#
+CONFIG_MBEDTLS_SSL_IN_CONTENT_LEN=4096
+CONFIG_MBEDTLS_SSL_OUT_CONTENT_LEN=4096
+
+# Free peer certificate and config data from heap immediately after handshake —
+# saves another ~10 KB per session once the handshake completes.
+CONFIG_MBEDTLS_DYNAMIC_BUFFER=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_PEER_CERT=y
+CONFIG_MBEDTLS_DYNAMIC_FREE_CONFIG_DATA=y

@@ -1,17 +1,18 @@
 #include "ftps_client.h"
 #include "config.h"
-#include <WiFiClientSecure.h>
 extern "C" {
 #include "puff/puff.h"
 }
 
-// ═════════════════════════════════════════════════════════════
-// Stream helpers — operate on a connected WiFiClientSecure
-// ═════════════════════════════════════════════════════════════
-
-static bool s_read(WiFiClientSecure &c, uint8_t *buf, size_t n, uint32_t tms) {
-    size_t got = 0;
-    uint32_t t = millis();
+// ═════════════════════════════════════════════════════════════════════════════
+// Stream helpers — operate on BambuTlsClient (data channel)
+//
+// s_read: blocking read of exactly n bytes with timeout
+// s_skip: blocking skip of exactly n bytes with timeout
+// ═════════════════════════════════════════════════════════════════════════════
+static bool s_read(BambuTlsClient &c, uint8_t *buf, size_t n, uint32_t tms) {
+    size_t   got = 0;
+    uint32_t t   = millis();
     while (got < n) {
         if (millis() - t > tms) return false;
         if (c.available()) {
@@ -22,10 +23,10 @@ static bool s_read(WiFiClientSecure &c, uint8_t *buf, size_t n, uint32_t tms) {
     return true;
 }
 
-static bool s_skip(WiFiClientSecure &c, uint32_t n, uint32_t tms) {
-    uint8_t tmp[256];
+static bool s_skip(BambuTlsClient &c, uint32_t n, uint32_t tms) {
+    uint8_t  tmp[256];
     uint32_t done = 0;
-    uint32_t t = millis();
+    uint32_t t    = millis();
     while (done < n) {
         if (millis() - t > tms) return false;
         uint32_t chunk = min((uint32_t)sizeof(tmp), n - done);
@@ -37,9 +38,9 @@ static bool s_skip(WiFiClientSecure &c, uint32_t n, uint32_t tms) {
     return true;
 }
 
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Control-channel helpers
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 
 void FtpsClient::begin(const char *ip, const char *access_code) {
     strncpy(_ip,   ip,          sizeof(_ip)   - 1);
@@ -65,18 +66,32 @@ void FtpsClient::_disconnect() {
 
 bool FtpsClient::_connectControl() {
     _freeCtrl();
-    _ctrl = new WiFiClientSecure();
-    _ctrl->setInsecure();
-    _ctrl->setTimeout(TIMEOUT_MS / 1000);
+    _ctrl = new BambuTlsClient();
 
     log_i("FTPS connecting to %s:%d", _ip, BAMBU_FTP_PORT);
-    if (!_ctrl->connect(_ip, BAMBU_FTP_PORT)) {
+
+    // On reconnect try to resume the previous ctrl session (fast handshake).
+    // On first connect _has_session is false → nullptr → full handshake.
+    // Either way we always save the resulting session for data channels.
+    bool ok = _ctrl->connect(_ip, BAMBU_FTP_PORT,
+                              _has_session ? &_session : nullptr,
+                              TIMEOUT_MS);
+    if (!ok) {
         log_w("FTPS TCP/TLS connect failed");
         _freeCtrl();
         return false;
     }
     log_i("FTPS TLS handshake OK");
 
+    // ── Save ctrl session so data channels can resume it ─────────────────────
+    // mbedtls_ssl_session_free is safe to call on a zeroed struct (first time)
+    // and correctly frees any allocations from the previous save.
+    mbedtls_ssl_session_free(&_session);
+    memset(&_session, 0, sizeof(_session));
+    _has_session = _ctrl->saveSession(&_session);
+    if (_has_session) log_i("FTPS ctrl session saved for data-channel resumption");
+
+    // ── Wait for FTP 220 banner ───────────────────────────────────────────────
     char reply[128] = {};
     unsigned long t = millis();
     bool got_banner = false;
@@ -107,7 +122,7 @@ bool FtpsClient::_ensureControl() {
     if (!_connectControl()) return false;
     if (!_login()) { _disconnect(); return false; }
     _sendCmd("PBSZ 0", 200);
-    _sendCmd("PROT P", 200);
+    _sendCmd("PROT P", 200);   // encrypted data channel — Bambu rejects PROT C (522)
     _sendCmd("TYPE I", 200);
     return true;
 }
@@ -147,10 +162,6 @@ bool FtpsClient::_parsePasv(const char *reply, char *data_ip, uint16_t &data_por
     return true;
 }
 
-// ═════════════════════════════════════════════════════════════
-// _drainCtrl — consume any pending ctrl replies after a transfer.
-// Call after closing the data channel to eat the 226 / error reply.
-// ═════════════════════════════════════════════════════════════
 void FtpsClient::_drainCtrl(uint32_t timeout_ms) {
     if (!_ctrl || !_ctrl->connected()) return;
     uint32_t t = millis();
@@ -161,32 +172,29 @@ void FtpsClient::_drainCtrl(uint32_t timeout_ms) {
             int code = atoi(buf);
             if (buf[3] == ' ' && code > 0) {
                 log_i("FTPS < %s", buf);
-                if (code == 226 || code >= 400) return;  // terminal reply consumed
+                if (code == 226 || code >= 400) return;
             }
-            t = millis();  // reset timeout on any data
+            t = millis();
         } else delay(5);
     }
 }
 
-// ═════════════════════════════════════════════════════════════
-// _openData — CWD + PASV + RETR, then open TLS data channel.
-//
-// KEY INSIGHT: Do NOT free the ctrl TLS before connecting data.
-// The Bambu server interprets ctrl close as an abort and sends
-// nothing on the data channel — causing empty transfers.
+// ═════════════════════════════════════════════════════════════════════════════
+// _openData — CWD + PASV + RETR, then open TLS data channel with session reuse.
 //
 // Flow:
-//   1. CWD to directory
-//   2. PASV → get data ip:port
-//   3. Send RETR <filename> on ctrl (don't wait for reply yet)
-//   4. Connect data TLS (ctrl stays alive)
-//   5. Wait for 150/125 on ctrl (server sends it after data connects)
-//   6. On 4xx/5xx → close data, return nullptr; ctrl stays for next cmd
-//   7. On 150 → return data; caller must _drainCtrl() after transfer
-// ═════════════════════════════════════════════════════════════
-WiFiClientSecure *FtpsClient::_openData(const char *retr_path) {
-    // Split retr_path into directory and filename
-    char dir[128] = "/";
+//   1. CWD to the directory of retr_path
+//   2. PASV → data ip:port
+//   3. Send RETR <filename> on ctrl (do NOT read reply yet)
+//   4. Connect BambuTlsClient to data ip:port, resuming the ctrl session
+//      (use_psram=true keeps data TLS out of internal SRAM)
+//   5. Wait for 150/125 on ctrl
+//   6. Return BambuTlsClient*; caller reads, stop()s, and deletes it,
+//      then calls _drainCtrl() for the trailing 226.
+// ═════════════════════════════════════════════════════════════════════════════
+BambuTlsClient *FtpsClient::_openData(const char *retr_path) {
+    // Split path into directory and filename
+    char dir[128]   = "/";
     char fname[128] = {};
     const char *slash = strrchr(retr_path, '/');
     if (slash && slash > retr_path) {
@@ -199,44 +207,74 @@ WiFiClientSecure *FtpsClient::_openData(const char *retr_path) {
         strncpy(fname, (slash ? slash + 1 : retr_path), sizeof(fname) - 1);
     }
 
-    // CWD to the directory
+    // CWD to directory
     char cwd_cmd[160];
     snprintf(cwd_cmd, sizeof(cwd_cmd), "CWD %s", dir);
     if (!_sendCmd(cwd_cmd, 250)) {
         log_w("FTPS CWD failed: %s", dir);
-        return nullptr;  // ctrl stays alive for next attempt
+        return nullptr;
     }
 
     char pasv_reply[128] = {};
     if (!_sendCmd("PASV", 227, pasv_reply, sizeof(pasv_reply))) return nullptr;
 
-    char data_ip[20] = {};
-    uint16_t data_port = 0;
+    char     data_ip[20] = {};
+    uint16_t data_port   = 0;
     if (!_parsePasv(pasv_reply, data_ip, data_port)) return nullptr;
 
-    // Send RETR — do NOT read the reply yet
+    // Send RETR, then peek the ctrl channel for ~200ms.
+    // If the file does not exist the server sends 550 almost immediately and
+    // never starts the TLS handshake on the data port — without this peek the
+    // client would hang for the full TIMEOUT_MS before giving up.
     char cmd[192];
     snprintf(cmd, sizeof(cmd), "RETR %s", fname);
     _ctrl->print(String(cmd) + "\r\n");
     _ctrl->flush();
 
-    // Connect data TLS — KEEP ctrl alive (closing ctrl aborts the transfer)
-    WiFiClientSecure *data = new WiFiClientSecure();
-    data->setInsecure();
-    data->setTimeout(TIMEOUT_MS / 1000);
-    if (!data->connect(data_ip, data_port)) {
-        log_w("FTPS data TLS connect failed for %s", retr_path);
+    bool pre_150 = false;
+    {
+        uint32_t pt = millis();
+        while (millis() - pt < 200) {
+            if (_ctrl->available()) {
+                char peek[128] = {};
+                _ctrl->readStringUntil('\n').toCharArray(peek, sizeof(peek));
+                int code = atoi(peek);
+                if (peek[3] == ' ' && code > 0) {
+                    log_i("FTPS < %s", peek);
+                    if (code >= 400) {
+                        log_w("FTPS RETR pre-rejected (%d): %s", code, retr_path);
+                        return nullptr;          // no TLS attempt needed
+                    }
+                    if (code == 150 || code == 125) pre_150 = true;
+                }
+                break;
+            }
+            delay(10);
+        }
+    }
+
+    // ── Open TLS data channel with session resumption ─────────────────────────
+    // use_psram=true: data-channel mbedTLS allocs go to PSRAM so both TLS
+    // sessions (ctrl in SRAM, data in PSRAM) coexist without OOM.
+    // _has_session: ctrl's mbedtls_ssl_session was saved after handshake;
+    // the data channel presents that session ID in its ClientHello → proftpd
+    // accepts it and does not return "522 session reuse required".
+    BambuTlsClient *data = new BambuTlsClient();
+    bool conn_ok = data->connect(data_ip, data_port,
+                                 _has_session ? &_session : nullptr,
+                                 TIMEOUT_MS, /*use_psram=*/true);
+    if (!conn_ok) {
+        log_w("FTPS data connect failed for %s", retr_path);
         delete data;
-        _drainCtrl();  // consume any error reply on ctrl
+        _drainCtrl();
         return nullptr;
     }
 
-    // Now wait for 150/125 on ctrl (server sends it after data connects)
-    // A 4xx/5xx here means the file doesn't exist.
-    char reply[128] = {};
-    uint32_t t = millis();
-    bool started = false;
-    while (millis() - t < 5000) {
+    // Wait for 150/125 on ctrl (may already have it from the pre-peek above)
+    char     reply[128] = {};
+    uint32_t t          = millis();
+    bool     started    = pre_150;
+    while (!started && millis() - t < 5000) {
         if (_ctrl->available()) {
             _ctrl->readStringUntil('\n').toCharArray(reply, sizeof(reply));
             int code = atoi(reply);
@@ -246,33 +284,34 @@ WiFiClientSecure *FtpsClient::_openData(const char *retr_path) {
                 if (code >= 400) {
                     log_w("FTPS RETR rejected (%d): %s", code, retr_path);
                     data->stop(); delete data;
-                    return nullptr;  // ctrl ready for next command
+                    return nullptr;
                 }
             }
         }
         delay(5);
     }
     if (!started) {
-        log_w("FTPS no 150 for %s — timeout, data closed", retr_path);
+        log_w("FTPS no 150 for %s", retr_path);
         data->stop(); delete data;
         _drainCtrl();
         return nullptr;
     }
 
-    log_i("FTPS data TLS OK → %s", retr_path);
-    return data;  // caller must _drainCtrl() after reading all data
+    log_i("FTPS data open → %s", retr_path);
+    return data;
 }
 
-// ═════════════════════════════════════════════════════════════
-// Download a flat (non-ZIP) file into out_buf.
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// Download a flat file into out_buf.
+// ═════════════════════════════════════════════════════════════════════════════
 size_t FtpsClient::_downloadFile(const char *path, uint8_t *buf, size_t max_bytes) {
-    WiFiClientSecure *data = _openData(path);
+    BambuTlsClient *data = _openData(path);
     if (!data) return 0;
 
-    size_t total = 0;
-    uint32_t t = millis();
+    size_t   total      = 0;
+    uint32_t t          = millis();
     const uint32_t RX_TIMEOUT = TIMEOUT_MS * 4;
+
     while ((data->connected() || data->available()) &&
            total < max_bytes &&
            millis() - t < RX_TIMEOUT) {
@@ -283,41 +322,56 @@ size_t FtpsClient::_downloadFile(const char *path, uint8_t *buf, size_t max_byte
     }
     data->stop();
     delete data;
-    _drainCtrl();  // consume 226 Transfer complete
+    _drainCtrl();
     return total;
 }
 
-// ═════════════════════════════════════════════════════════════
-// Stream a .3mf (ZIP) file from the printer and extract
-// the thumbnail PNG embedded at Metadata/thumbnail.png
-// (or Metadata/plate_1.png as fallback).
-//
-// ZIP local file header layout (after the 4-byte PK\x03\x04 sig):
-//  Offset  Size  Field
-//   0       2    version needed
-//   2       2    general purpose bit flag
-//   4       2    compression method  (0=stored, 8=deflate)
-//   6       2    last-mod time
-//   8       2    last-mod date
-//  10       4    CRC-32
-//  14       4    compressed size
-//  18       4    uncompressed size
-//  22       2    file-name length
-//  24       2    extra-field length
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// Stream a .3mf (ZIP) and extract the embedded thumbnail PNG.
+// Handles Bambu .3mf where every entry uses data-descriptor mode (comp_sz==0
+// in the local file header, actual sizes follow the compressed data).
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Scan forward byte-by-byte until a PK local-file (03 04), central-dir
+// (01 02), or EOCD (05 06) signature is found.  Fills next_sig[4].
+static bool s_scan_to_pk(BambuTlsClient &s, uint32_t max_scan,
+                          uint32_t timeout_ms, uint8_t next_sig[4]) {
+    uint8_t w[4] = {};
+    int n = 0;
+    for (uint32_t i = 0; i < max_scan; i++) {
+        uint8_t b;
+        if (!s_read(s, &b, 1, timeout_ms)) return false;
+        w[0]=w[1]; w[1]=w[2]; w[2]=w[3]; w[3]=b;
+        if (++n >= 4 && w[0]=='P' && w[1]=='K') {
+            if ((w[2]==3&&w[3]==4)||(w[2]==1&&w[3]==2)||(w[2]==5&&w[3]==6)) {
+                memcpy(next_sig, w, 4);
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 size_t FtpsClient::_extractFromMf(const char *path, uint8_t *out_buf, size_t max_bytes) {
-    WiFiClientSecure *data = _openData(path);
+    BambuTlsClient *data = _openData(path);
     if (!data) return 0;
 
-    const uint32_t MAX_SCAN    = 3UL * 1024 * 1024;
+    const uint32_t MAX_SCAN     = 3UL * 1024 * 1024;
     const uint32_t DATA_TIMEOUT = TIMEOUT_MS * 6;
-    uint32_t scanned = 0;
-    size_t result = 0;
+    uint32_t scanned  = 0;
+    size_t   result   = 0;
+    bool     have_sig = false;
+    uint8_t  next_sig[4] = {};
 
     while (scanned < MAX_SCAN) {
         uint8_t sig[4];
-        if (!s_read(*data, sig, 4, DATA_TIMEOUT)) { log_w("FTPS ZIP: timeout @ sig"); break; }
-        scanned += 4;
+        if (have_sig) {
+            memcpy(sig, next_sig, 4);
+            have_sig = false;
+        } else {
+            if (!s_read(*data, sig, 4, DATA_TIMEOUT)) { log_w("FTPS ZIP: timeout @ sig"); break; }
+            scanned += 4;
+        }
 
         if (sig[0]=='P' && sig[1]=='K' &&
             ((sig[2]==1 && sig[3]==2) || (sig[2]==5 && sig[3]==6))) {
@@ -336,111 +390,161 @@ size_t FtpsClient::_extractFromMf(const char *path, uint8_t *out_buf, size_t max
 
         uint16_t flags     = hdr[2]  | (uint16_t(hdr[3])  << 8);
         uint16_t method    = hdr[4]  | (uint16_t(hdr[5])  << 8);
-        uint32_t comp_sz   = hdr[14] | (uint32_t(hdr[15]) << 8) | (uint32_t(hdr[16]) << 16) | (uint32_t(hdr[17]) << 24);
+        uint32_t comp_sz   = hdr[14] | (uint32_t(hdr[15]) << 8)
+                           | (uint32_t(hdr[16]) << 16) | (uint32_t(hdr[17]) << 24);
         uint16_t fname_len = hdr[22] | (uint16_t(hdr[23]) << 8);
         uint16_t extra_len = hdr[24] | (uint16_t(hdr[25]) << 8);
 
         char fname[256] = {};
-        uint16_t to_read = (fname_len < 255) ? fname_len : 255;
-        if (!s_read(*data, (uint8_t*)fname, to_read, DATA_TIMEOUT)) break;
+        uint16_t to_read_n = (fname_len < 255) ? fname_len : 255;
+        if (!s_read(*data, (uint8_t *)fname, to_read_n, DATA_TIMEOUT)) break;
         scanned += fname_len;
-        if (fname_len > to_read && !s_skip(*data, fname_len - to_read, DATA_TIMEOUT)) break;
-
+        if (fname_len > to_read_n && !s_skip(*data, fname_len - to_read_n, DATA_TIMEOUT)) break;
         if (!s_skip(*data, extra_len, DATA_TIMEOUT)) break;
         scanned += extra_len;
 
         bool is_thumb = (strncmp(fname, "Metadata/thumbnail", 18) == 0 ||
                          strncmp(fname, "Metadata/plate_1",   16) == 0);
+        // Streaming = data-descriptor flag; comp_sz may be 0 in header
+        bool streaming = (flags & 0x08) && (comp_sz == 0);
 
         if (!is_thumb) {
-            if (comp_sz == 0 && (flags & 0x08)) {
-                log_w("FTPS ZIP: streaming entry without size, cannot skip");
-                break;
-            }
-            if (!s_skip(*data, comp_sz, DATA_TIMEOUT)) break;
-            scanned += comp_sz;
-            if (flags & 0x08) {
-                s_skip(*data, 16, DATA_TIMEOUT);
-                scanned += 16;
+            if (streaming) {
+                // Scan to next PK signature; bytes consumed are data + descriptor
+                log_i("FTPS ZIP: scanning past '%s' (streaming entry)", fname);
+                if (!s_scan_to_pk(*data, MAX_SCAN, DATA_TIMEOUT, next_sig)) break;
+                have_sig = true;
+            } else {
+                if (!s_skip(*data, comp_sz, DATA_TIMEOUT)) break;
+                scanned += comp_sz;
+                if (flags & 0x08) { s_skip(*data, 16, DATA_TIMEOUT); scanned += 16; }
             }
             continue;
         }
 
-        if (comp_sz == 0 || comp_sz > 1024UL * 1024) {
-            log_w("FTPS ZIP: thumbnail comp_sz=%u out of range", comp_sz);
-            break;
-        }
+        // ── Thumbnail entry ───────────────────────────────────────────────
+        log_i("FTPS ZIP: found thumbnail '%s' method=%d comp_sz=%u streaming=%d",
+              fname, method, comp_sz, streaming);
 
-        if (method == 0) {
-            size_t to_get = min((size_t)comp_sz, max_bytes);
-            if (s_read(*data, out_buf, to_get, DATA_TIMEOUT * 2)) {
-                result = to_get;
-            }
-        } else if (method == 8) {
-            uint8_t *cbuf = (uint8_t*)heap_caps_malloc(comp_sz,
+        if (streaming) {
+            // Collect bytes into PSRAM until next PK sig (or stream end),
+            // then strip the trailing data descriptor to get raw compressed data.
+            const size_t MAX_COMP = 512 * 1024;
+            uint8_t *cbuf = (uint8_t *)heap_caps_malloc(MAX_COMP,
                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            if (!cbuf) cbuf = (uint8_t*)malloc(comp_sz);
-            if (!cbuf) { log_w("FTPS ZIP: OOM for cbuf %u bytes", comp_sz); break; }
+            if (!cbuf) cbuf = (uint8_t *)malloc(MAX_COMP);
+            if (!cbuf) { log_w("FTPS ZIP: OOM streaming thumb"); break; }
 
-            if (s_read(*data, cbuf, comp_sz, DATA_TIMEOUT * 2)) {
-                unsigned long destlen = (unsigned long)max_bytes;
-                unsigned long srclen  = (unsigned long)comp_sz;
-                int ret = puff(out_buf, &destlen, cbuf, &srclen);
-                if (ret == 0) {
-                    result = (size_t)destlen;
+            size_t  clen = 0;
+            uint8_t w[4] = {};
+            int     wn   = 0;
+
+            while (clen < MAX_COMP) {
+                uint8_t b;
+                if (!s_read(*data, &b, 1, DATA_TIMEOUT)) break; // stream closed = end
+                cbuf[clen++] = b;
+                w[0]=w[1]; w[1]=w[2]; w[2]=w[3]; w[3]=b;
+                if (++wn >= 4 && w[0]=='P' && w[1]=='K' &&
+                    ((w[2]==3&&w[3]==4)||(w[2]==1&&w[3]==2)||(w[2]==5&&w[3]==6))) {
+                    clen -= 4; // remove PK sig from buffer
+                    memcpy(next_sig, w, 4);
+                    have_sig = true;
+                    break;
+                }
+            }
+
+            // Strip data descriptor: [optional sig 50 4B 07 08] CRC(4) compSz(4) uncompSz(4)
+            if (clen >= 16 &&
+                cbuf[clen-16]==0x50 && cbuf[clen-15]==0x4B &&
+                cbuf[clen-14]==0x07 && cbuf[clen-13]==0x08) {
+                clen -= 16;
+            } else if (clen >= 12) {
+                clen -= 12;
+            }
+            log_i("FTPS ZIP: streaming thumb %u compressed bytes", clen);
+
+            if (clen > 0) {
+                if (method == 0) {
+                    size_t n = min(clen, max_bytes);
+                    memcpy(out_buf, cbuf, n);
+                    result = n;
+                } else if (method == 8) {
+                    unsigned long destlen = (unsigned long)max_bytes;
+                    unsigned long srclen  = (unsigned long)clen;
+                    int ret = puff(out_buf, &destlen, cbuf, &srclen);
+                    if (ret == 0) result = (size_t)destlen;
+                    else log_w("FTPS inflate error %d (streaming)", ret);
                 } else {
-                    log_w("FTPS inflate error %d [%s]", ret, fname);
-                    result = 0;
+                    log_w("FTPS ZIP: unsupported method %d (streaming)", method);
                 }
             }
             free(cbuf);
+
         } else {
-            log_w("FTPS ZIP: unsupported method %d for thumbnail", method);
+            // Non-streaming: comp_sz is known in the local header
+            if (comp_sz == 0 || comp_sz > 1024UL * 1024) {
+                log_w("FTPS ZIP: thumbnail comp_sz=%u out of range", comp_sz);
+                break;
+            }
+            if (method == 0) {
+                size_t to_get = min((size_t)comp_sz, max_bytes);
+                if (s_read(*data, out_buf, to_get, DATA_TIMEOUT * 2)) result = to_get;
+            } else if (method == 8) {
+                uint8_t *cbuf = (uint8_t *)heap_caps_malloc(comp_sz,
+                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+                if (!cbuf) cbuf = (uint8_t *)malloc(comp_sz);
+                if (!cbuf) { log_w("FTPS ZIP: OOM cbuf %u bytes", comp_sz); break; }
+                if (s_read(*data, cbuf, comp_sz, DATA_TIMEOUT * 2)) {
+                    unsigned long destlen = (unsigned long)max_bytes;
+                    unsigned long srclen  = (unsigned long)comp_sz;
+                    int ret = puff(out_buf, &destlen, cbuf, &srclen);
+                    if (ret == 0) result = (size_t)destlen;
+                    else log_w("FTPS inflate error %d [%s]", ret, fname);
+                }
+                free(cbuf);
+            } else {
+                log_w("FTPS ZIP: unsupported method %d for '%s'", method, fname);
+            }
         }
         break;
     }
 
     data->stop();
     delete data;
-    _drainCtrl();  // consume 226
+    _drainCtrl();
     return result;
 }
 
-// ═════════════════════════════════════════════════════════════
-// _listDir — CWD → PASV → LIST → data TLS (ctrl stays alive)
-//            → wait for 150 on ctrl → read listing → drain 226
-//
-// Also tries NLST if LIST returns nothing (some servers differ).
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
+// _listDir — CWD → PASV → LIST → TLS data (session resumed) → drain ctrl
+// ═════════════════════════════════════════════════════════════════════════════
 void FtpsClient::_listDir(const char *dir) {
     if (!_ctrl) return;
 
-    // CWD to directory first
     char cwd_cmd[160];
     snprintf(cwd_cmd, sizeof(cwd_cmd), "CWD %s", dir);
     if (!_sendCmd(cwd_cmd, 250)) {
         log_w("FTPS CWD failed for listing: %s", dir);
-        return;  // ctrl stays alive
+        return;
     }
 
     for (int pass = 0; pass < 2; pass++) {
-        // PASV
-        char pasv_reply[128] = {};
+        char     pasv_reply[128] = {};
         if (!_sendCmd("PASV", 227, pasv_reply, sizeof(pasv_reply))) return;
-        char data_ip[20] = {};
-        uint16_t data_port = 0;
+        char     data_ip[20] = {};
+        uint16_t data_port   = 0;
         if (!_parsePasv(pasv_reply, data_ip, data_port)) return;
 
-        // Send LIST (pass 0) or NLST (pass 1) — do NOT read reply yet
         const char *list_cmd = (pass == 0) ? "LIST\r\n" : "NLST\r\n";
         _ctrl->print(list_cmd);
         _ctrl->flush();
 
-        // Connect data TLS — ctrl stays alive
-        WiFiClientSecure *data = new WiFiClientSecure();
-        data->setInsecure();
-        data->setTimeout(TIMEOUT_MS / 1000);
-        if (!data->connect(data_ip, data_port)) {
+        // TLS data channel — session resumed from ctrl (same logic as _openData)
+        BambuTlsClient *data = new BambuTlsClient();
+        bool conn_ok = data->connect(data_ip, data_port,
+                                     _has_session ? &_session : nullptr,
+                                     TIMEOUT_MS, /*use_psram=*/true);
+        if (!conn_ok) {
             log_w("FTPS LIST data connect failed for %s", dir);
             delete data;
             _drainCtrl();
@@ -448,9 +552,9 @@ void FtpsClient::_listDir(const char *dir) {
         }
 
         // Wait for 150 on ctrl
-        char reply[128] = {};
-        uint32_t t = millis();
-        bool started = false;
+        char     reply[128] = {};
+        uint32_t t          = millis();
+        bool     started    = false;
         while (millis() - t < 5000) {
             if (_ctrl->available()) {
                 _ctrl->readStringUntil('\n').toCharArray(reply, sizeof(reply));
@@ -474,19 +578,18 @@ void FtpsClient::_listDir(const char *dir) {
             return;
         }
 
-        // Read listing
         log_i("FTPS DIR %s (pass %d):", dir, pass);
         uint32_t dt = millis();
-        String line;
-        int count = 0;
+        String   line;
+        int      count = 0;
         while ((data->connected() || data->available()) && millis() - dt < 5000) {
             if (data->available()) {
-                char c = data->read();
+                char c = (char)data->read();
                 if (c == '\n') {
                     line.trim();
                     if (line.length()) { log_i("  %s", line.c_str()); count++; }
                     line = "";
-                    dt = millis();
+                    dt   = millis();
                 } else {
                     line += c;
                 }
@@ -497,22 +600,24 @@ void FtpsClient::_listDir(const char *dir) {
         delete data;
         _drainCtrl();
 
-        if (count > 0) break;  // got results, no need for NLST pass
+        if (count > 0) break;
         if (pass == 0) log_i("FTPS LIST empty for %s, retrying with NLST", dir);
     }
 }
 
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 // Public entry point
-// ═════════════════════════════════════════════════════════════
+// ═════════════════════════════════════════════════════════════════════════════
 size_t FtpsClient::downloadThumbnail(const char *job_name,
                                       const char *gcode_file,
                                       uint8_t    *out_buf,
                                       size_t      max_bytes) {
     if (!_ensureControl()) { log_w("FTPS ctrl connect failed"); return 0; }
 
-    // ── DIAGNOSTIC: list dirs to map the FTP filesystem ──────────────
-    log_i("FTPS SCAN job='%s' gcode='%s'", job_name ? job_name : "(null)", gcode_file ? gcode_file : "(null)");
+    // ── DIAGNOSTIC: list dirs to map the FTP filesystem ──────────────────────
+    log_i("FTPS SCAN job='%s' gcode='%s'",
+          job_name   ? job_name   : "(null)",
+          gcode_file ? gcode_file : "(null)");
     _listDir("/");
     if (!_ensureControl()) return 0;
     _listDir("/data");
@@ -523,15 +628,11 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
     if (!_ensureControl()) return 0;
     _listDir("/cache");
     if (!_ensureControl()) return 0;
-    // ── end diagnostic ───────────────────────────────────────────────
+    // ── end diagnostic ────────────────────────────────────────────────────────
 
     size_t got = 0;
 
-    // ── 0. Primary: derive path from gcode_file hint ──────────────────
-    //   gcode_file from MQTT = "/data/Metadata/plate_1.gcode"
-    //   FTP server root appears to be different from internal fs mount.
-    //   Try A: path as-is          → /data/Metadata/plate_1.png
-    //   Try B: strip /data prefix  → /Metadata/plate_1.png
+    // ── 0. Primary: derive path from gcode_file hint ─────────────────────────
     if (gcode_file && strlen(gcode_file) > 6) {
         char base[128] = {};
         strncpy(base, gcode_file, sizeof(base) - 1);
@@ -546,7 +647,7 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
 
         const char *img_exts[] = { ".png", ".jpg", nullptr };
 
-        // Try A: full path
+        // Try A: full path as-is
         for (int i = 0; img_exts[i] && !got; i++) {
             char path[160];
             snprintf(path, sizeof(path), "%s%s", base, img_exts[i]);
@@ -571,19 +672,24 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
         }
     }
 
-    // ── 1. .3mf in / then /cache/ ─────────────────────────────────────
+    // ── 1. .3mf in / then /cache/ ────────────────────────────────────────────
+    // Bambu stores files as "{name}.gcode.3mf" (not just "{name}.3mf"),
+    // so try the .gcode.3mf variant first, then the bare .3mf as a fallback.
     if (!got) {
-        const char *dirs[] = { "/", "/cache/", nullptr };
+        const char *dirs[]    = { "/cache/", "/", nullptr };
+        const char *mf_exts[] = { ".gcode.3mf", ".3mf", nullptr };
         for (int d = 0; dirs[d] && !got; d++) {
-            char mf_path[128];
-            snprintf(mf_path, sizeof(mf_path), "%s%s.3mf", dirs[d], job_name);
-            log_i("FTPS trying .3mf: %s", mf_path);
-            if (_ensureControl())
-                got = _extractFromMf(mf_path, out_buf, max_bytes);
+            for (int e = 0; mf_exts[e] && !got; e++) {
+                char mf_path[160];
+                snprintf(mf_path, sizeof(mf_path), "%s%s%s", dirs[d], job_name, mf_exts[e]);
+                log_i("FTPS trying .3mf: %s", mf_path);
+                if (_ensureControl())
+                    got = _extractFromMf(mf_path, out_buf, max_bytes);
+            }
         }
     }
 
-    // ── 2. Flat image named after job in / and /cache/ ────────────────
+    // ── 2. Flat image named after job in / and /cache/ ───────────────────────
     if (!got) {
         const char *dirs[] = { "/", "/cache/", nullptr };
         const char *exts[] = { ".jpg", ".png", ".jpeg", nullptr };
@@ -598,7 +704,7 @@ size_t FtpsClient::downloadThumbnail(const char *job_name,
         }
     }
 
-    // ── 3. Last-resort generic thumb names ───────────────────────────
+    // ── 3. Last-resort generic thumb names ───────────────────────────────────
     if (!got) {
         const char *generic[] = { "/thumb.jpg", "/cache/thumb.jpg", nullptr };
         for (int i = 0; generic[i] && !got; i++) {

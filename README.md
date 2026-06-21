@@ -1,12 +1,6 @@
-# <img alt="logo" src="Logo/bambutagger.png" height="36" /> BambuTagger-Console
+# 🖨️ BambuTagger-Console — ESP32-8048S043
 
-A touchscreen printer dashboard for **Bambu Lab** 3D printers running on the **Sunton ESP32-8048S043** development board (ESP32-S3, 800×480 RGB display).
-
-[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G8M220JASY)
-
-<p align="center">
-<img src="Pics/main.jpg" />
-</p>
+A touchscreen printer dashboard for **Bambu Lab X1C / X1E / P1S / P1P / A1** series printers running on the **Sunton ESP32-8048S043** development board (ESP32-S3, 800×480 RGB display).
 
 ---
 
@@ -69,11 +63,11 @@ Tap **Save & Connect** — the board will reconnect and the status screen will p
 
 ```
 ┌───────┬─────────────────────────────────────────────────┐
-│  [B]  │  MyModel.3mf                       [RUNNING]    │
-│       │  ████████████████░░░░░░░░░░  72%                │
-│ [📋]  │ ─────────────────────────────────────────────── │
+│  [B]  │  MyModel.3mf                      [RUNNING]    │
+│       │  ████████████████░░░░░░░░░░  72%               │
+│  [📋] │ ─────────────────────────────────────────────── │
 │       │ ┌────────┐   🌡 Nozzle   220°C / 220°C          │
-│  [⚙]  │ │        │   🏠 Bed       55°C /  55°C          │
+│  [⚙] │ │        │   🏠 Bed       55°C /  55°C          │
 │       │ │ THUMB  │   🔄 Chamber   32°C                  │
 │ [WiFi]│ │        │                                      │
 │       │ └────────┘   📋 Layers   72 / 100               │
@@ -145,3 +139,8 @@ BambuTagger-Console/
 | PubSubClient | ^2.8 | MQTT client |
 | ArduinoJson | ^7.0.4 | JSON parsing |
 
+---
+
+## License
+
+MIT — free to use, modify, and share.
