@@ -16,6 +16,10 @@
 #include <Preferences.h>
 #include <Update.h>
 #include <Arduino.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
+#include "config.h"
 
 // Forward-declared in main.cpp — show OTA progress on the display
 void ota_display_begin();
@@ -120,7 +124,7 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
 )html";
 
 // ─────────────────────────────────────────────────────────────
-// Firmware update page (upload .bin)
+// Firmware update page — fetches latest release from GitHub
 // ─────────────────────────────────────────────────────────────
 static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
 <!DOCTYPE html>
@@ -137,63 +141,73 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
         box-shadow:0 4px 24px rgba(0,0,0,.5)}
   h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
   .sub{color:#8899aa;font-size:.85em;margin-bottom:22px}
-  h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
-     margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
-  label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
-  input[type=file]{display:block;width:100%;padding:12px;margin-bottom:12px;
-        background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
-        font-size:.9em;outline:none}
-  input[type=file]::file-selector-button{background:#1db954;color:#fff;border:none;
-        padding:6px 14px;border-radius:4px;cursor:pointer;margin-right:10px}
-  button{display:block;width:100%;padding:13px;margin-top:6px;
+  .ver{color:#90caf9;font-size:.95em;margin:9px 0 4px}
+  .ver span{color:#eaeaea;font-weight:bold}
+  .ver .new{color:#1db954}
+  .ver .old{color:#6c757d}
+  button{display:block;width:100%;padding:13px;margin-top:16px;
          background:#1db954;color:#fff;border:none;border-radius:8px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
   button:hover{background:#17a845}
   button:disabled{background:#555;cursor:not-allowed}
   .back-link{display:inline-block;margin-top:16px;color:#90caf9;font-size:.85em;text-decoration:none}
   .back-link:hover{text-decoration:underline}
-  #progress-wrap{display:none;margin-top:14px}
-  #progress-bar{border-radius:10px;height:20px;background:#0f3460;overflow:hidden}
-  #progress-fill{height:100%;width:0;background:#1db954;border-radius:10px;transition:width .3s;text-align:center;font-size:.7em;line-height:20px;color:#fff}
-  #up-status{display:none;margin-top:12px;color:#8899aa;font-size:.85em;text-align:center}
+  #status{display:none;margin-top:14px;padding:12px;border-radius:6px;font-size:.9em;text-align:center}
+  #status.info{display:block;background:#0f3460;color:#90caf9}
+  #status.ok{display:block;background:#0f3460;color:#1db954}
+  #status.err{display:block;background:#3d1a1a;color:#e74c3c}
 </style>
 </head>
 <body>
 <div class="card">
   <h1>Firmware Update</h1>
-  <p class="sub">Upload a firmware (<code>.bin</code>) file</p>
-  <form id="up-form" method="post" action="/update" enctype="multipart/form-data">
-    <label>Firmware Binary</label>
-    <input id="up-file" type="file" name="firmware" accept=".bin" required>
-    <button id="up-btn" type="submit">Upload &amp; Update</button>
+  <p class="sub">Install the latest release from GitHub</p>
+  <div class="ver">Current: <span class="old" id="cur-ver">%%VER%%</span></div>
+  <div class="ver">Latest:  <span class="new" id="lat-ver">&mdash;</span></div>
+  <div id="status"></div>
+  <form id="up-form" method="post" action="/update">
+    <button id="up-btn" type="submit">Install Latest Version</button>
   </form>
-  <div id="progress-wrap">
-    <div id="progress-bar"><div id="progress-fill">0%</div></div>
-  </div>
-  <div id="up-status"></div>
   <a class="back-link" href="/">&larr; Back to Configuration</a>
 </div>
 <script>
 (function(){
-  var form=document.getElementById('up-form'),
-      inp=document.getElementById('up-file'),
-      btn=document.getElementById('up-btn'),
-      pw=document.getElementById('progress-wrap'),
-      pf=document.getElementById('progress-fill'),
-      st=document.getElementById('up-status');
-  form.onsubmit=function(e){
-    e.preventDefault();
-    if(!inp.files.length)return;
-    btn.disabled=true; btn.textContent='Uploading…';
-    pw.style.display='block'; st.style.display='block';
-    st.textContent='Uploading firmware …';
-    var x=new XMLHttpRequest();
-    x.upload.addEventListener('progress',function(e){
-      if(e.lengthComputable){var p=Math.round(e.loaded/e.total*100);pf.style.width=p+'%';pf.textContent=p+'%'}
-    });
-    x.addEventListener('load',function(){st.innerHTML=x.responseText;pf.style.width='100%';pf.textContent='100%'});
-    x.addEventListener('error',function(){st.textContent='Upload failed';btn.disabled=false;btn.textContent='Upload & Update'});
-    var fd=new FormData(form);x.open('POST','/update',true);x.send(fd);
+  var btn=document.getElementById('up-btn'),
+      st=document.getElementById('status'),
+      lv=document.getElementById('lat-ver');
+  btn.textContent='Checking…'; btn.disabled=true;
+  st.className='info'; st.textContent='Checking for latest release…';
+  var x=new XMLHttpRequest();
+  x.open('GET','/api/release',true);
+  x.onload=function(){
+    if(x.status==200){
+      var r=JSON.parse(x.responseText);
+      lv.textContent=r.tag;
+      if(r.update){
+        st.className='info'; st.textContent='Version '+r.tag+' is available!';
+        btn.textContent='Install Version '+r.tag;
+        btn.disabled=false;
+      }else{
+        st.className='ok'; st.textContent='Already up to date.';
+        btn.textContent='Re-install '+r.tag;
+        btn.disabled=false;
+      }
+    }else{
+      st.className='err'; st.textContent='Failed to check for updates.';
+      btn.textContent='Install Latest Version';
+      btn.disabled=false;
+    }
+  };
+  x.onerror=function(){
+    st.className='err'; st.textContent='Network error checking for updates.';
+    btn.textContent='Install Latest Version';
+    btn.disabled=false;
+  };
+  x.send();
+  document.getElementById('up-form').onsubmit=function(e){
+    if(btn.disabled){e.preventDefault();return}
+    btn.disabled=true; btn.textContent='Installing…';
+    st.className='info'; st.textContent='Downloading firmware from GitHub…';
   };
 })();
 </script>
@@ -309,48 +323,208 @@ static void _portal_handle_save() {
     ESP.restart();
 }
 
-// ── Firmware update handlers ─────────────────────────────────
+// ── Internal: fetch & parse latest release, return download URL & tag ──
+// Returns true on success; downloadUrl and tag are filled in.
+static bool _portal_get_latest_release(String &downloadUrl, String &tag) {
+    WiFiClientSecure apiClient;
+    apiClient.setInsecure();
+    {
+        HTTPClient apiHttp;
+        apiHttp.setTimeout(10000);
+        apiHttp.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        if (!apiHttp.begin(apiClient, "https://api.github.com/repos/VID-PRO/BambuTagger-Console/releases/latest")) {
+            return false;
+        }
+        apiHttp.addHeader("User-Agent", "BambuTagger-Console");
+        apiHttp.addHeader("Accept", "application/vnd.github+json");
+        int code = apiHttp.GET();
+        if (code != 200) {
+            apiHttp.end();
+            return false;
+        }
+        String body = apiHttp.getString();
+        apiHttp.end();
 
-static bool _update_ok = false;
+        JsonDocument doc;
+        DeserializationError err = deserializeJson(doc, body);
+        if (err) return false;
 
-static void _portal_handle_update_page() {
-    _portal_server.send(200, "text/html; charset=utf-8", FPSTR(_UPDATE_PAGE_HTML));
+        tag = doc["tag_name"].as<String>();
+        if (tag.length() == 0) return false;
+
+        JsonArray assets = doc["assets"].as<JsonArray>();
+        for (JsonObject asset : assets) {
+            const char *name = asset["name"].as<const char *>();
+            if (name && strcmp(name, "firmware.bin") == 0) {
+                downloadUrl = asset["browser_download_url"].as<String>();
+                break;
+            }
+        }
+        // fallback: construct URL from tag if assets array was empty
+        if (downloadUrl.length() == 0) {
+            downloadUrl = "https://github.com/VID-PRO/BambuTagger-Console/releases/download/"
+                        + tag + "/firmware.bin";
+        }
+    }
+    return downloadUrl.length() > 0;
 }
 
-static void _portal_handle_update_upload() {
-    HTTPUpload &upload = _portal_server.upload();
-    if (upload.status == UPLOAD_FILE_START) {
-        log_i("Update: receiving %s", upload.filename.c_str());
-        _update_ok = false;
-        ota_display_begin();
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-            log_e("Update.begin failed");
-        }
-    } else if (upload.status == UPLOAD_FILE_WRITE) {
-        if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) {
-            log_e("Update.write failed at offset %u", upload.totalSize);
-        }
-        // Estimate progress against max ~2 MB firmware
-        int pct = (upload.totalSize * 100) / 0x200000;
-        if (pct > 99) pct = 99;
-        char msg[48];
-        snprintf(msg, sizeof(msg), "Receiving… %d KB", upload.totalSize / 1024);
-        ota_display_progress(pct, msg);
-    } else if (upload.status == UPLOAD_FILE_END) {
-        _update_ok = Update.end(true);
-        if (_update_ok) {
-            log_i("Update success (%u bytes)", upload.totalSize);
-            ota_display_progress(100, "Update complete! Rebooting…");
-        } else {
-            log_e("Update failed: %s", Update.errorString());
-            ota_display_end();
-        }
-    } else if (upload.status == UPLOAD_FILE_ABORTED) {
-        Update.end(false);
-        _update_ok = false;
-        ota_display_end();
-        log_w("Update aborted");
+// ── Firmware update handlers ─────────────────────────────────
+
+static void _portal_handle_update_page() {
+    String page = FPSTR(_UPDATE_PAGE_HTML);
+    page.replace("%%VER%%", APP_VERSION);
+    _portal_server.send(200, "text/html; charset=utf-8", page);
+}
+
+static void _portal_handle_api_release() {
+    String downloadUrl, tag;
+    if (!_portal_get_latest_release(downloadUrl, tag)) {
+        _portal_server.send(502, "application/json", R"({"error":"API request failed"})");
+        return;
     }
+
+    const char *ver = tag.c_str();
+    while (*ver == 'v' || *ver == 'V') ++ver;
+
+    bool update = false;
+    int ma, mb;
+    const char *a = ver, *b = APP_VERSION;
+    while (*a && *b) {
+        ma = mb = 0;
+        while (*a >= '0' && *a <= '9') ma = ma * 10 + (*a++ - '0');
+        while (*b >= '0' && *b <= '9') mb = mb * 10 + (*b++ - '0');
+        if (ma != mb) { update = (ma > mb); break; }
+        if (*a == '.' || *a == 'v') ++a;
+        if (*b == '.' || *b == 'v') ++b;
+    }
+    if (!update) update = (*a && !*b);
+
+    char json[256];
+    snprintf(json, sizeof(json),
+             R"({"tag":"%s","update":%s})",
+             tag.c_str(), update ? "true" : "false");
+    _portal_server.send(200, "application/json", json);
+}
+
+static void _portal_handle_update_github() {
+    ota_display_begin();
+    ota_display_progress(1, "Fetching latest release…");
+
+    String downloadUrl, tag;
+    if (!_portal_get_latest_release(downloadUrl, tag)) {
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", "Failed to fetch release info");
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        ota_display_end();
+        return;
+    }
+
+    ota_display_progress(5, "Downloading firmware from GitHub…");
+
+    // Use a fresh WiFiClientSecure — the API client in _portal_get_latest_release
+    // is already cleaned up since we left its scope.
+    WiFiClientSecure client;
+    client.setInsecure();
+    HTTPClient http;
+    http.setTimeout(30000);
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+    if (!http.begin(client, downloadUrl)) {
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", "Download connection failed");
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        ota_display_end();
+        return;
+    }
+    http.addHeader("User-Agent", "BambuTagger-Console");
+
+    int code = http.GET();
+    if (code != 200) {
+        char buf[80];
+        snprintf(buf, sizeof(buf), "Download error: HTTP %d", code);
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", buf);
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        http.end();
+        ota_display_end();
+        return;
+    }
+
+    int totalSize = http.getSize();
+    WiFiClient *stream = http.getStreamPtr();
+
+    uint8_t *buf = (uint8_t *)malloc(1024);
+    if (!buf) {
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", "Memory allocation failed");
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        http.end();
+        ota_display_end();
+        return;
+    }
+
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        free(buf);
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", "Update init failed");
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        http.end();
+        ota_display_end();
+        return;
+    }
+
+    int written  = 0;
+    int last_pct = -1;
+
+    while (http.connected() && (totalSize <= 0 || written < totalSize)) {
+        int avail = stream->available();
+        if (avail > 0) {
+            int toRead = (avail > 1024) ? 1024 : avail;
+            int read = stream->readBytes(buf, toRead);
+            if (read <= 0) break;
+            if (Update.write(buf, read) != read) {
+                free(buf);
+                Update.end(false);
+                String html = FPSTR(_UPDATE_FAIL_HTML);
+                html.replace("%%MSG%%", "Flash write failed");
+                _portal_server.send(200, "text/html; charset=utf-8", html);
+                http.end();
+                ota_display_end();
+                return;
+            }
+            written += read;
+
+            if (totalSize > 0) {
+                int pct = (written * 100) / totalSize;
+                if (pct != last_pct && (pct % 10 == 0 || pct == 100)) {
+                    last_pct = pct;
+                    char msg[48];
+                    snprintf(msg, sizeof(msg), "Downloading… %d%% (%d KB)", pct, written / 1024);
+                    ota_display_progress(pct, msg);
+                }
+            }
+        }
+    }
+    http.end();
+    free(buf);
+
+    ota_display_progress(95, "Flashing firmware…");
+
+    if (!Update.end(true)) {
+        char msg[96];
+        snprintf(msg, sizeof(msg), "Update failed: %s", Update.errorString());
+        String html = FPSTR(_UPDATE_FAIL_HTML);
+        html.replace("%%MSG%%", msg);
+        _portal_server.send(200, "text/html; charset=utf-8", html);
+        ota_display_end();
+        return;
+    }
+
+    ota_display_progress(100, "Update complete! Rebooting…");
+    _portal_server.send_P(200, "text/html; charset=utf-8", _UPDATE_OK_HTML);
+    _portal_server.client().flush();
+    delay(1500);
+    ESP.restart();
 }
 
 static void _portal_register_routes() {
@@ -359,23 +533,9 @@ static void _portal_register_routes() {
         _portal_server.send(200, "text/html; charset=utf-8", page);
     });
     _portal_server.on("/save", HTTP_POST, _portal_handle_save);
-    _portal_server.on("/update", HTTP_GET, _portal_handle_update_page);
-    _portal_server.on("/update", HTTP_POST,
-        []() {
-            if (_update_ok) {
-                _portal_server.send_P(200, "text/html; charset=utf-8", _UPDATE_OK_HTML);
-                _portal_server.client().flush();
-                delay(1000);
-                ESP.restart();
-            } else {
-                String msg = Update.hasError() ? String(Update.errorString()) : "Unknown error";
-                String html = FPSTR(_UPDATE_FAIL_HTML);
-                html.replace("%%MSG%%", msg);
-                _portal_server.send(200, "text/html; charset=utf-8", html);
-            }
-        },
-        _portal_handle_update_upload
-    );
+    _portal_server.on("/update",      HTTP_GET,  _portal_handle_update_page);
+    _portal_server.on("/update",      HTTP_POST, _portal_handle_update_github);
+    _portal_server.on("/api/release", HTTP_GET,  _portal_handle_api_release);
     // Captive-portal catch-all (Android / iOS auto-redirect)
     _portal_server.onNotFound([]() {
         _portal_server.sendHeader("Location", "http://192.168.4.1/", true);
