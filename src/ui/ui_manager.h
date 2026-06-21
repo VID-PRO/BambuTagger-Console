@@ -14,10 +14,11 @@
 #include <lvgl.h>
 #include "../bambu/bambu_client.h"
 #include "screen_status.h"
-#include "screen_config.h"
+#include "screen_config_wifi.h"
+#include "screen_config_printer.h"
 #include <functional>
 
-enum class ActiveScreen { STATUS, CONFIG };
+enum class ActiveScreen { STATUS, CONFIG_WIFI, CONFIG_PRINTER };
 
 class UIManager {
 public:
@@ -38,22 +39,32 @@ public:
     /** MQTT/printer indicator: green=connected, red=disconnected. */
     void setMqttConnected(bool connected);
 
-    /** Wire up the "save & connect" action from config screen. */
-    void onConnect(ConnectCallback cb);
+    /** Wire up the calibrate callback for WiFi config screen. */
+    void onCalibrateWiFi(std::function<void()> cb) {
+        _screen_config_wifi.onCalibrate(cb);
+    }
+
+    /** Wire up the save & connect callback for printer config screen. */
+    void onSaveConnectPrinter(std::function<void()> cb) {
+        _screen_config_printer.onSaveConnect(cb);
+    }
 
     ScreenStatus &statusScreen() { return _screen_status; }
-    ScreenConfig &configScreen() { return _screen_config; }
+    ScreenConfigWiFi &configWifiScreen() { return _screen_config_wifi; }
+    ScreenConfigPrinter &configPrinterScreen() { return _screen_config_printer; }
 
 private:
     static void _sidebar_btn_cb(lv_event_t *e);
 
     lv_obj_t    *_sidebar         = nullptr;
     lv_obj_t    *_btn_status      = nullptr;
-    lv_obj_t    *_btn_config      = nullptr;
+    lv_obj_t    *_btn_wifi        = nullptr;
+    lv_obj_t    *_btn_printer     = nullptr;
     lv_obj_t    *_lbl_conn_dot    = nullptr;
     lv_obj_t    *_lbl_mqtt_dot    = nullptr;
     ActiveScreen _active          = ActiveScreen::STATUS;
 
     ScreenStatus _screen_status;
-    ScreenConfig _screen_config;
+    ScreenConfigWiFi _screen_config_wifi;
+    ScreenConfigPrinter _screen_config_printer;
 };

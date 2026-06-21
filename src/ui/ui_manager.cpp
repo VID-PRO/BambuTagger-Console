@@ -63,8 +63,9 @@ void UIManager::init() {
         lv_obj_align(ic, LV_ALIGN_CENTER, 0, -10);  // shift up to make room for label
     };
 
-    makeSideBtn(_btn_status, LV_SYMBOL_LIST,     0);    // Printer / status
-    makeSideBtn(_btn_config, LV_SYMBOL_SETTINGS, 72);   // Configuration
+    makeSideBtn(_btn_status,  LV_SYMBOL_LIST,     0);    // Printer / status
+    makeSideBtn(_btn_printer, LV_SYMBOL_SETTINGS, 216);  // Printer config
+    makeSideBtn(_btn_wifi,    LV_SYMBOL_WIFI,     280);  // WiFi config
 
     // ── Tooltip labels under icons ────────────────────────────
     auto makeTooltip = [&](lv_obj_t *btn, const char *txt) {
@@ -74,8 +75,9 @@ void UIManager::init() {
         lv_obj_set_style_text_color(t, lv_color_hex(0x8899AA), 0);
         lv_obj_align(t, LV_ALIGN_BOTTOM_MID, 0, -4);
     };
-    makeTooltip(_btn_status, "Print");
-    makeTooltip(_btn_config, "Config");
+    makeTooltip(_btn_status,  "Status");
+    makeTooltip(_btn_printer, "Printer");
+    makeTooltip(_btn_wifi,    "WiFi");
 
     // ── MQTT dot (above WiFi, bottom of sidebar) ─────────────
     _lbl_mqtt_dot = lv_label_create(_sidebar);
@@ -93,7 +95,17 @@ void UIManager::init() {
 
     // ── Create screens (hidden by default) ───────────────────
     _screen_status.create(scr);
-    _screen_config.create(scr);
+    _screen_config_printer.create(scr);
+    _screen_config_wifi.create(scr);
+
+    // ── Wire up config screen navigation ──────────────────────
+    _screen_config_wifi.onCalibrate([this]() {
+        // Calibration callback will be set in main.cpp
+    });
+
+    _screen_config_printer.onSaveConnect([this]() {
+        // Connection logic will be set in main.cpp
+    });
 
     showScreen(ActiveScreen::STATUS);
 }
@@ -102,17 +114,27 @@ void UIManager::init() {
 void UIManager::showScreen(ActiveScreen s) {
     _active = s;
 
-    // Show/hide screens
+    // Hide all screens first
+    lv_obj_add_flag(_screen_status.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(_screen_config_printer.root(), LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(_screen_config_wifi.root(), LV_OBJ_FLAG_HIDDEN);
+
+    // Show/hide screens and update button states
     if (s == ActiveScreen::STATUS) {
         lv_obj_clear_flag(_screen_status.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(_screen_config.root(),  LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(_btn_status, COL_BTN_ACTIVE, 0);
-        lv_obj_set_style_bg_color(_btn_config,  COL_BTN_IDLE,   0);
-    } else {
-        lv_obj_add_flag(_screen_status.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_clear_flag(_screen_config.root(), LV_OBJ_FLAG_HIDDEN);
-        lv_obj_set_style_bg_color(_btn_status, COL_BTN_IDLE,   0);
-        lv_obj_set_style_bg_color(_btn_config,  COL_BTN_ACTIVE, 0);
+        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_ACTIVE, 0);
+        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_IDLE,   0);
+        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_IDLE,   0);
+    } else if (s == ActiveScreen::CONFIG_WIFI) {
+        lv_obj_clear_flag(_screen_config_wifi.root(), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_IDLE,   0);
+        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_ACTIVE, 0);
+        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_IDLE,   0);
+    } else if (s == ActiveScreen::CONFIG_PRINTER) {
+        lv_obj_clear_flag(_screen_config_printer.root(), LV_OBJ_FLAG_HIDDEN);
+        lv_obj_set_style_bg_color(_btn_status,  COL_BTN_IDLE,   0);
+        lv_obj_set_style_bg_color(_btn_wifi,    COL_BTN_IDLE,   0);
+        lv_obj_set_style_bg_color(_btn_printer, COL_BTN_ACTIVE, 0);
     }
 }
 
@@ -143,15 +165,16 @@ void UIManager::setMqttConnected(bool connected) {
     );
 }
 
-void UIManager::onConnect(ConnectCallback cb) {
-    _screen_config.onConnect(cb);
-}
-
 // ── Sidebar button click ──────────────────────────────────────
 void UIManager::_sidebar_btn_cb(lv_event_t *e) {
     auto *self = (UIManager *)lv_event_get_user_data(e);
     lv_obj_t *btn = lv_event_get_target(e);
 
-    if (btn == self->_btn_status) self->showScreen(ActiveScreen::STATUS);
-    else if (btn == self->_btn_config) self->showScreen(ActiveScreen::CONFIG);
+    if (btn == self->_btn_status) {
+        self->showScreen(ActiveScreen::STATUS);
+    } else if (btn == self->_btn_wifi) {
+        self->showScreen(ActiveScreen::CONFIG_WIFI);
+    } else if (btn == self->_btn_printer) {
+        self->showScreen(ActiveScreen::CONFIG_PRINTER);
+    }
 }

@@ -214,9 +214,9 @@ static void networkTask(void *param) {
     // (already wired in setup via g_ui.onConnect)
 
     LV_LOCK();
-    // Pre-fill config screen with current credentials
-    g_ui.configScreen().loadValues(
-        g_wifi_ssid, g_wifi_pass, g_bam_ip, g_bam_serial, g_bam_code);
+    // Pre-fill config screens with current credentials
+    g_ui.configWifiScreen().loadValues(g_wifi_ssid, g_wifi_pass);
+    g_ui.configPrinterScreen().loadValues(g_bam_ip, g_bam_serial, g_bam_code);
     LV_UNLOCK();
 
     // Track last-known indicator state to avoid spamming LVGL
@@ -349,12 +349,12 @@ void setup() {
     g_ui.statusScreen().onResume([]() { g_bambu.resume(); });
     g_ui.statusScreen().onStop  ([]() { g_bambu.stop();   });
 
-    // Wire calibrate button — set flag; loop() will run the wizard
-    g_ui.configScreen().onCalibrate([]() { g_run_calibration = true; });
+    // Wire calibrate button from WiFi config screen
+    g_ui.onCalibrateWiFi([]() { g_run_calibration = true; });
 
-    // Wire config "save & connect" button
-    g_ui.onConnect([]() {
-        // Read new values from NVS (already written by screen_config)
+    // Wire config "save & connect" button from printer config screen
+    g_ui.onSaveConnectPrinter([]() {
+        // Read new values from NVS (already written by screen_config_printer)
         Preferences prefs;
         prefs.begin("bambu_mon", true);
         prefs.getString("wifi_ssid",  g_wifi_ssid,  sizeof(g_wifi_ssid));

@@ -12,7 +12,7 @@ A touchscreen printer dashboard for **Bambu Lab X1C / X1E / P1S / P1P / A1** ser
 | 📊 Live status | Nozzle / bed / chamber temps, progress bar, layer counter, remaining time |
 | 🖼️ Thumbnail | Downloads the print thumbnail via FTPS and shows it during a print |
 | 🎨 Dark UI | Clean dark theme with green Bambu-style accents |
-| ⚙️ Config screen | On-screen keyboard to set WiFi + printer credentials — saved to NVS |
+| ⚙️ Config screens | On-screen keyboard to set WiFi and printer credentials (separate WiFi and Printer screens) — saved to NVS |
 | 💾 Persistent settings | All credentials survive reboots (stored in ESP32 NVS) |
 
 ---
@@ -46,7 +46,7 @@ pio run -t upload # flash
 
 ### 3. First-time setup (on the touchscreen)
 
-Tap the **⚙️ Config** icon in the left sidebar and fill in:
+Tap the **WiFi** and **Printer** icons in the left sidebar and fill in the appropriate fields:
 
 | Field | Where to find it |
 |---|---|
@@ -55,7 +55,7 @@ Tap the **⚙️ Config** icon in the left sidebar and fill in:
 | Serial Number | Printer touchscreen → About |
 | Access Code | Printer touchscreen → Network → Access code |
 
-Tap **Save & Connect** — the board will reconnect and the status screen will populate within seconds.
+Tap **Save** on each screen — the board will reconnect and the status screen will populate within seconds.
 
 ---
 
@@ -113,7 +113,8 @@ BambuTagger-Console/
     └── ui/
         ├── ui_manager.h/.cpp     # Sidebar + screen switcher
         ├── screen_status.h/.cpp  # Printer status screen
-        └── screen_config.h/.cpp  # Configuration screen
+        ├── screen_config_wifi.h/.cpp  # WiFi configuration screen
+        └── screen_config_printer.h/.cpp  # Printer configuration screen
 ```
 
 ---

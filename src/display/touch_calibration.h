@@ -10,7 +10,7 @@
  *
  * Calibration is triggered:
  *   • Automatically on first boot (no NVS data found)
- *   • Manually via the "Calibrate Touchscreen" button on the Config screen
+ *   • Manually via the "Calibrate Touchscreen" button on the WiFi configuration screen
  *
  * Public API
  * ──────────

@@ -1,4 +1,4 @@
-#include "screen_config.h"
+#include "screen_config_wifi.h"
 #include "config.h"
 #include <Preferences.h>
 
@@ -8,7 +8,7 @@
 #define COL_ACC  lv_color_hex(0x1DB954)
 
 // ─────────────────────────────────────────────────────────────
-void ScreenConfig::create(lv_obj_t *parent) {
+void ScreenConfigWiFi::create(lv_obj_t *parent) {
     _root = lv_obj_create(parent);
     lv_obj_set_size(_root, LCD_WIDTH - SIDEBAR_W, LCD_HEIGHT);
     lv_obj_align(_root, LV_ALIGN_TOP_RIGHT, 0, 0);
@@ -38,16 +38,6 @@ void ScreenConfig::create(lv_obj_t *parent) {
     _ta_ssid = _makeField(scroll, nullptr, "SSID", 0);
     _ta_pass = _makeField(scroll, _ta_ssid, "Password", 0, true);
 
-    // ── Section: Printer ─────────────────────────────────────
-    lv_obj_t *lbl_printer = lv_label_create(scroll);
-    lv_label_set_text(lbl_printer, LV_SYMBOL_SETTINGS "  Printer Configuration");
-    lv_obj_set_style_text_font(lbl_printer, &lv_font_montserrat_24, 0);
-    lv_obj_set_style_text_color(lbl_printer, COL_ACC, 0);
-
-    _ta_ip     = _makeField(scroll, _ta_pass, "IP Address (e.g. 192.168.1.100)", 0);
-    _ta_serial = _makeField(scroll, _ta_ip,   "Serial Number (e.g. 01S00C...)",   0);
-    _ta_code   = _makeField(scroll, _ta_serial, "Access Code (8 digits)",         0, true);
-
     // ── Status label ─────────────────────────────────────────
     _lbl_status = lv_label_create(scroll);
     lv_obj_set_style_text_font(_lbl_status, &lv_font_montserrat_24, 0);
@@ -70,11 +60,11 @@ void ScreenConfig::create(lv_obj_t *parent) {
     lv_obj_add_event_cb(btn_cal, _cal_event_cb, LV_EVENT_CLICKED, this);
 
     lv_obj_t *cal_lbl = lv_label_create(btn_cal);
-    lv_label_set_text(cal_lbl, LV_SYMBOL_EDIT "  Calibrate Touchscreen");
+    lv_label_set_text(cal_lbl, LV_SYMBOL_EDIT "  Calibrate");
     lv_obj_set_style_text_font(cal_lbl, &lv_font_montserrat_24, 0);
     lv_obj_center(cal_lbl);
 
-    // "Save & Connect" (right)
+    // "Save" (right)
     lv_obj_t *btn = lv_btn_create(_root);
     lv_obj_set_size(btn, 200, 44);
     lv_obj_align(btn, LV_ALIGN_BOTTOM_RIGHT, -20, -14);
@@ -82,15 +72,15 @@ void ScreenConfig::create(lv_obj_t *parent) {
     lv_obj_add_event_cb(btn, _save_event_cb, LV_EVENT_CLICKED, this);
 
     lv_obj_t *btn_lbl = lv_label_create(btn);
-    lv_label_set_text(btn_lbl, LV_SYMBOL_SAVE "  Save & Connect");
+    lv_label_set_text(btn_lbl, LV_SYMBOL_SAVE "  Save");
     lv_obj_set_style_text_font(btn_lbl, &lv_font_montserrat_24, 0);
     lv_obj_center(btn_lbl);
 }
 
 // ─────────────────────────────────────────────────────────────
-lv_obj_t *ScreenConfig::_makeField(lv_obj_t *parent, lv_obj_t *,
-                                    const char *label_text, int,
-                                    bool password) {
+lv_obj_t *ScreenConfigWiFi::_makeField(lv_obj_t *parent, lv_obj_t *,
+                                        const char *label_text, int,
+                                        bool password) {
     lv_obj_t *cont = lv_obj_create(parent);
     lv_obj_set_width(cont, lv_pct(100));
     lv_obj_set_height(cont, LV_SIZE_CONTENT);
@@ -124,21 +114,16 @@ lv_obj_t *ScreenConfig::_makeField(lv_obj_t *parent, lv_obj_t *,
 }
 
 // ─────────────────────────────────────────────────────────────
-void ScreenConfig::loadValues(const char *ssid, const char *pass,
-                               const char *ip, const char *serial,
-                               const char *code) {
+void ScreenConfigWiFi::loadValues(const char *ssid, const char *pass) {
     if (_ta_ssid)   lv_textarea_set_text(_ta_ssid,   ssid);
     if (_ta_pass)   lv_textarea_set_text(_ta_pass,   pass);
-    if (_ta_ip)     lv_textarea_set_text(_ta_ip,     ip);
-    if (_ta_serial) lv_textarea_set_text(_ta_serial, serial);
-    if (_ta_code)   lv_textarea_set_text(_ta_code,   code);
 }
 
 // ── Event: textarea focused → show keyboard ──────────────────
-void ScreenConfig::_ta_event_cb(lv_event_t *e) {
+void ScreenConfigWiFi::_ta_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     lv_obj_t *ta = lv_event_get_target(e);
-    auto *self = (ScreenConfig *)lv_event_get_user_data(e);
+    auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
 
     if (code == LV_EVENT_FOCUSED) {
         lv_keyboard_set_textarea(self->_kb, ta);
@@ -152,8 +137,8 @@ void ScreenConfig::_ta_event_cb(lv_event_t *e) {
 }
 
 // ── Event: keyboard ──────────────────────────────────────────
-void ScreenConfig::_kb_event_cb(lv_event_t *e) {
-    auto *self = (ScreenConfig *)lv_event_get_user_data(e);
+void ScreenConfigWiFi::_kb_event_cb(lv_event_t *e) {
+    auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
     lv_event_code_t code = lv_event_get_code(e);
     if (code == LV_EVENT_READY || code == LV_EVENT_CANCEL) {
         lv_obj_add_flag(self->_kb, LV_OBJ_FLAG_HIDDEN);
@@ -161,32 +146,27 @@ void ScreenConfig::_kb_event_cb(lv_event_t *e) {
 }
 
 // ── Event: calibrate button ───────────────────────────────────
-void ScreenConfig::_cal_event_cb(lv_event_t *e) {
+void ScreenConfigWiFi::_cal_event_cb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
-    auto *self = (ScreenConfig *)lv_event_get_user_data(e);
+    auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
     if (self->_cal_cb) self->_cal_cb();
 }
 
-// ── Event: save button ────────────────────────────────────────
-void ScreenConfig::_save_event_cb(lv_event_t *e) {
+// ── Event: next button ────────────────────────────────────────
+void ScreenConfigWiFi::_save_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
     if (code != LV_EVENT_CLICKED) return;
-    auto *self = (ScreenConfig *)lv_event_get_user_data(e);
+    auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
 
-    // Persist to NVS
+    // Persist WiFi to NVS
     Preferences prefs;
     prefs.begin("bambu_mon", false);
-    prefs.putString("wifi_ssid",  lv_textarea_get_text(self->_ta_ssid));
-    prefs.putString("wifi_pass",  lv_textarea_get_text(self->_ta_pass));
-    prefs.putString("bam_ip",     lv_textarea_get_text(self->_ta_ip));
-    prefs.putString("bam_serial", lv_textarea_get_text(self->_ta_serial));
-    prefs.putString("bam_code",   lv_textarea_get_text(self->_ta_code));
+    prefs.putString("wifi_ssid", lv_textarea_get_text(self->_ta_ssid));
+    prefs.putString("wifi_pass", lv_textarea_get_text(self->_ta_pass));
     prefs.end();
 
-    lv_label_set_text(self->_lbl_status,
-        LV_SYMBOL_OK "  Settings saved! Reconnecting…");
-    lv_obj_set_style_text_color(self->_lbl_status,
-        lv_color_hex(0x1DB954), 0);
+    lv_label_set_text(self->_lbl_status, LV_SYMBOL_OK "  WiFi saved!");
+    lv_obj_set_style_text_color(self->_lbl_status, lv_color_hex(0x1DB954), 0);
 
-    if (self->_connect_cb) self->_connect_cb();
+    if (self->_save_cb) self->_save_cb();
 }
