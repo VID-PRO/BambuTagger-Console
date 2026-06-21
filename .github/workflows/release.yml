@@ -1,18 +1,27 @@
-name: PlatformIO Build
+# ============================================================
+#  BambuTagger-Console — Automatic Build & Release
+#  Compiles the ESP32 sketch and publishes a GitHub Release
+#  every time a version tag (v*) is pushed.
+#  A normal push to main only compiles (smoke-test, no release).
+# ============================================================
+
+name: Build & Release
 
 on:
   push:
-    branches:
-      - main
-      - master
+    branches: [ "main", "master" ]
+    tags:
+      - "v*"
+      - "[0-9]*"
   pull_request:
-    branches:
-      - main
-      - master
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    name: Build Firmware
     runs-on: ubuntu-latest
 
     steps:
@@ -24,6 +33,15 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache PlatformIO and pip
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.platformio
+            ~/.cache/pip
+          key: platformio-${{ runner.os }}-${{ hashFiles('platformio.ini') }}
+          restore-keys: platformio-${{ runner.os }}-
+
       - name: Install PlatformIO
         run: |
           python -m pip install --upgrade pip
@@ -31,10 +49,70 @@ jobs:
 
       - name: Build with PlatformIO
         run: |
-          pio run
+          pio run -e esp32-8048s043
 
-      - name: Upload build artifacts
+      - name: Create merged binary
+        run: |
+          python -m pip install --upgrade pip
+          pip install esptool --quiet
+          mkdir -p build
+          APP="${{ github.workspace }}/.pio/build/esp32-8048s043/firmware.bin"
+          BOOT="${{ github.workspace }}/.pio/build/esp32-8048s043/bootloader.bin"
+          PART="${{ github.workspace }}/.pio/build/esp32-8048s043/partitions.bin"
+          MERGED="${{ github.workspace }}/build/BambuTagger-Console_merged.bin"
+          esptool.py \
+            --chip esp32s3 \
+            merge_bin \
+            --output "$MERGED" \
+            --flash_mode qio \
+            --flash_freq 80m \
+            --flash_size 16MB \
+            0x1000 "$BOOT" \
+            0x8000 "$PART" \
+            0x10000 "$APP"
+          echo "=== Build artefacts ==="
+          ls -lh "${{ github.workspace }}/.pio/build/esp32-8048s043/"
+          ls -lh "${{ github.workspace }}/build/"
+
+      - name: Upload firmware artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-build
-          path: .pio/build/**
+          name: BambuTagger-Console-firmware-${{ github.sha }}
+          retention-days: 30
+          path: |
+            .pio/build/esp32-8048s043/firmware.bin
+            .pio/build/esp32-8048s043/bootloader.bin
+            .pio/build/esp32-8048s043/partitions.bin
+            build/BambuTagger-Console_merged.bin
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "BambuTagger-Console ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            .pio/build/esp32-8048s043/firmware.bin
+            .pio/build/esp32-8048s043/bootloader.bin
+            .pio/build/esp32-8048s043/partitions.bin
+            build/BambuTagger-Console_merged.bin
+          body: |
+            ## Flashing instructions
+
+            ### Easiest — merged binary (single file, address 0x00)
+            ```
+            esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 921600 \
+              write_flash 0x0 BambuTagger-Console_merged.bin
+            ```
+
+            ### Manual — separate files
+            ```
+            esptool.py --chip esp32s3 --port /dev/ttyUSB0 --baud 921600 \
+              write_flash \
+              0x1000   BambuTagger-Console/bootloader.bin \
+              0x8000   BambuTagger-Console/partitions.bin \
+              0x10000  BambuTagger-Console/firmware.bin
+            ```
+
+            > **Board:** ESP32-S3 Dev Module
+            > **Flash:** 16 MB, QIO, 80 MHz
