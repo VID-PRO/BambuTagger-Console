@@ -9,7 +9,7 @@
 
 // -- Version info ----------------------------------------------
 #define APP_NAME    "BambuTagger-Console"
-#define APP_VERSION "1.2.0"
+#define APP_VERSION "1.3.0"
 
 // ── WiFi ──────────────────────────────────────────────────────
 #define DEFAULT_WIFI_SSID     "YourWiFiSSID"
