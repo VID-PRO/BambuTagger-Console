@@ -35,11 +35,11 @@ void ota_display_end();
 // ─────────────────────────────────────────────────────────────
 // ── Shared styles for both settings pages ────────────────────
 static const char _SETTINGS_STYLE[] PROGMEM = R"(
-.subnav{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid #1e3a5f}
-.subnav a{padding:8px 18px;color:#8899aa;text-decoration:none;font-size:13px;font-weight:600;
+.subnav{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid #30363d}
+.subnav a{padding:8px 18px;color:#8b949e;text-decoration:none;font-size:13px;font-weight:600;
           border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
-.subnav a:hover{color:#eaeaea}
-.subnav a.active{color:#1db954;border-bottom-color:#1db954}
+.subnav a:hover{color:#c9d1d9}
+.subnav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
 )";
 
 // ── WiFi settings page ────────────────────────────────────────
@@ -49,41 +49,41 @@ static const char _PORTAL_WIFI_TMPL[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BambuTagger-Console — WiFi</title>
+<title>BambuTagger Console — WiFi</title>
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-  .nav-links a:hover{background:#0f3460;color:#eaeaea}
-  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:16px}
-  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:480px;
-        box-shadow:0 4px 24px rgba(0,0,0,.5)}
-  h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
-     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
-  label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:28px;width:100%;max-width:480px}
+  h2{color:#58a6ff;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
+     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #30363d}
+  label{display:block;color:#8b949e;font-size:.8em;margin-bottom:3px}
   input{display:block;width:100%;padding:10px 12px;margin-bottom:10px;
-        background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
+        background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;
         font-size:.95em;outline:none;transition:border .2s}
-  input:focus{border-color:#1db954}
+  input:focus{border-color:#58a6ff}
   button{display:block;width:100%;padding:13px;margin-top:6px;
-         background:#1db954;color:#fff;border:none;border-radius:8px;
+         background:#238636;color:#fff;border:none;border-radius:6px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
-  button:hover{background:#17a845}
+  button:hover{background:#2ea043}
 )html";
 // (styles continued below _SETTINGS_STYLE)
 static const char _PORTAL_WIFI_TMPL2[] PROGMEM = R"html(
 </style>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
- <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">
@@ -109,40 +109,39 @@ static const char _PORTAL_PRINTERS_TMPL[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BambuTagger-Console — Printers</title>
+<title>BambuTagger Console — Printers</title>
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-  .nav-links a:hover{background:#0f3460;color:#eaeaea}
-  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:16px}
-  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:480px;
-        box-shadow:0 4px 24px rgba(0,0,0,.5)}
-  h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
-     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
-  .printer-section{border:1px solid #1e3a5f;border-radius:8px;padding:12px;margin:8px 0}
-  .printer-section h3{color:#eaeaea;font-size:.9em;margin:0 0 8px}
-  label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:28px;width:100%;max-width:480px}
+  h2{color:#58a6ff;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
+     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #30363d}
+  .printer-section{border:1px solid #30363d;border-radius:6px;padding:12px;margin:8px 0}
+  .printer-section h3{color:#f0f6fc;font-size:.9em;margin:0 0 8px}
+  label{display:block;color:#8b949e;font-size:.8em;margin-bottom:3px}
   input{display:block;width:100%;padding:10px 12px;margin-bottom:10px;
-        background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
+        background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;
         font-size:.95em;outline:none;transition:border .2s}
-  input:focus{border-color:#1db954}
+  input:focus{border-color:#58a6ff}
+  select{display:inline-block;width:auto;padding:6px 10px;margin-bottom:12px;
+         background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:6px;
+         font-size:.95em;outline:none;cursor:pointer}
+  select:focus{border-color:#58a6ff}
   button{display:block;width:100%;padding:13px;margin-top:6px;
-         background:#1db954;color:#fff;border:none;border-radius:8px;
+         background:#238636;color:#fff;border:none;border-radius:6px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
-  button:hover{background:#17a845}
-  .subnav{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid #1e3a5f}
-  .subnav a{padding:8px 18px;color:#8899aa;text-decoration:none;font-size:13px;font-weight:600;
-            border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
-  .subnav a:hover{color:#eaeaea}
-  .subnav a.active{color:#1db954;border-bottom-color:#1db954}
-  .hint{color:#6c757d;font-size:.78em;margin-top:-7px;margin-bottom:10px}
+  button:hover{background:#2ea043}
+  .hint{color:#484f58;font-size:.78em;margin-top:-7px;margin-bottom:10px}
   .printer-hide{display:none}
 </style>
 <script>
@@ -155,9 +154,9 @@ function togglePrinters(n){
 </script>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
- <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">
@@ -165,10 +164,7 @@ function togglePrinters(n){
   <h2>Printer Settings</h2>
   <form method="post" action="/save">
     <label style="display:inline">Number of printers:</label>
-    <select name="bam_count" onchange="togglePrinters(parseInt(this.value))"
-            style="display:inline-block;width:auto;padding:6px 10px;margin-bottom:12px;
-                   background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
-                   font-size:.95em;outline:none">
+    <select name="bam_count" onchange="togglePrinters(parseInt(this.value))">
       <option value="1" %%SEL1%%>1</option>
       <option value="2" %%SEL2%%>2</option>
       <option value="3" %%SEL3%%>3</option>
@@ -192,27 +188,30 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="15;url=/config">
-<title>BambuTagger-Console</title>
+<title>BambuTagger Console</title>
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
-  .card{background:#16213e;border-radius:12px;padding:40px 32px}
-  h1{color:#1db954;font-size:2em;margin-bottom:10px}
-  p{color:#8899aa}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
+  h1{color:#3fb950;font-size:2em;margin-bottom:10px}
+  p{color:#8b949e}
 </style>
 <script>setTimeout(function(){location.href='/config'},15000);</script>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
- <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">
@@ -234,41 +233,41 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BambuTagger-Console — Update</title>
+<title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-  .nav-links a:hover{background:#0f3460;color:#eaeaea}
-  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:32px 16px}
-  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:440px;
-        box-shadow:0 4px 24px rgba(0,0,0,.5)}
-  h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
-  .sub{color:#8899aa;font-size:.85em;margin-bottom:22px}
-  .ver{color:#90caf9;font-size:.95em;margin:9px 0 4px}
-  .ver span{color:#eaeaea;font-weight:bold}
-  .ver .new{color:#1db954}
-  .ver .old{color:#6c757d}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:28px;width:100%;max-width:440px}
+  h1{color:#3fb950;font-size:1.4em;margin-bottom:4px}
+  .sub{color:#8b949e;font-size:.85em;margin-bottom:22px}
+  .ver{color:#8b949e;font-size:.95em;margin:9px 0 4px}
+  .ver span{color:#f0f6fc;font-weight:bold}
+  .ver .new{color:#3fb950}
+  .ver .old{color:#8b949e}
   button{display:block;width:100%;padding:13px;margin-top:16px;
-         background:#1db954;color:#fff;border:none;border-radius:8px;
+         background:#238636;color:#fff;border:none;border-radius:6px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
-  button:hover{background:#17a845}
-  button:disabled{background:#555;cursor:not-allowed}
+  button:hover{background:#2ea043}
+  button:disabled{background:#484f58;cursor:not-allowed;color:#8b949e}
   #status{display:none;margin-top:14px;padding:12px;border-radius:6px;font-size:.9em;text-align:center}
-  #status.info{display:block;background:#0f3460;color:#90caf9}
-  #status.ok{display:block;background:#0f3460;color:#1db954}
-  #status.err{display:block;background:#3d1a1a;color:#e74c3c}
+  #status.info{display:block;background:rgba(88,166,255,0.1);color:#58a6ff}
+  #status.ok{display:block;background:rgba(63,185,80,0.1);color:#3fb950}
+  #status.err{display:block;background:rgba(218,54,51,0.1);color:#da3633}
 </style>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
-  <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">
@@ -352,27 +351,28 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta http-equiv="refresh" content="20;url=/">
-<title>BambuTagger-Console — Update</title>
+<title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-  .nav-links a:hover{background:#0f3460;color:#eaeaea}
-  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
-  .card{background:#16213e;border-radius:12px;padding:40px 32px}
-  h1{color:#1db954;font-size:2em;margin-bottom:10px}
-  p{color:#8899aa}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
+  h1{color:#3fb950;font-size:2em;margin-bottom:10px}
+  p{color:#8b949e}
 </style>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
- <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">
@@ -391,27 +391,28 @@ static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BambuTagger-Console — Update</title>
+<title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-  .nav-brand img{width:32px;height:32px;border-radius:4px}
-  .nav-links{display:flex;gap:4px}
-  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-  .nav-links a:hover{background:#0f3460;color:#eaeaea}
-  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+  header .logo{display:flex;align-items:center;gap:10px}
+  header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+  header h1{font-size:18px;color:#58a6ff}
+  nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+  nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;border-bottom:2px solid transparent}
+  nav a:hover{color:#c9d1d9}
+  nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
   .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
-  .card{background:#16213e;border-radius:12px;padding:40px 32px}
-  h1{color:#e74c3c;font-size:1.6em;margin-bottom:10px}
-  p{color:#8899aa}
+  .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
+  h1{color:#da3633;font-size:1.6em;margin-bottom:10px}
+  p{color:#8b949e}
 </style>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
- <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+<a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a>
 </nav>
 <div class="wrapper">
 <div class="card">

@@ -295,6 +295,14 @@ static void networkTask(void *param) {
             g_web_status[i].sd_present   = sc.sd_present;
 
             if (s.fresh_thumb && strlen(s.job_name) > 0) {
+                // Bambu printers send fresh_thumb=true on every status
+                // report while printing.  Skip if we already have a
+                // thumbnail for this job to avoid redundant downloads.
+                if (g_web_status[i].has_thumb &&
+                    strcmp(g_web_status[i].job_name, s.job_name) == 0) {
+                    ((PrinterStatus &)s).fresh_thumb = false;
+                    return;
+                }
                 log_i("MQTT thumb trigger printer=%d job=%s", i, s.job_name);
                 if (g_thumb_queue) {
                     ThumbRequest req;

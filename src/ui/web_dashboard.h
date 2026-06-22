@@ -33,8 +33,6 @@ extern uint8_t         *g_web_thumb_buf[WEB_DASHBOARD_MAX_PRINTERS];
 extern size_t           g_web_thumb_sz[WEB_DASHBOARD_MAX_PRINTERS];
 
 // ── HTML dashboard page (PROGMEM) ──────────────────────────────────────
-// Incremental DOM update: JavaScript creates/reuses card elements and
-// updates values in-place instead of replacing innerHTML every cycle.
 static const char DASHBOARD_HTML[] PROGMEM = R"raw(
 <!DOCTYPE html>
 <html lang="en">
@@ -45,56 +43,59 @@ static const char DASHBOARD_HTML[] PROGMEM = R"raw(
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
-nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
-.nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
-.nav-brand img{width:32px;height:32px;border-radius:4px}
-.nav-links{display:flex;gap:4px}
-.nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
-.nav-links a:hover{background:#0f3460;color:#eaeaea}
-.nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
-.container{padding:16px}
-#printers{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:12px}
-.card{background:#16213e;border-radius:12px;padding:16px}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+background:#0d1117;color:#c9d1d9;min-height:100vh;padding-bottom:32px}
+header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
+header .logo{display:flex;align-items:center;gap:10px}
+header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
+header h1{font-size:18px;color:#58a6ff}
+nav{background:#161b22;border-bottom:1px solid #30363d;display:flex;gap:0}
+nav a{padding:10px 20px;color:#8b949e;text-decoration:none;font-size:14px;
+border-bottom:2px solid transparent;cursor:pointer}
+nav a:hover{color:#c9d1d9}
+nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
+.container{max-width:960px;margin:0 auto;padding:20px}
+#printers{display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:12px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:16px}
 .card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
-.card-header h2{font-size:17px;color:#eaeaea}
-.badge{font-size:11px;padding:3px 10px;border-radius:4px;font-weight:700;text-transform:uppercase}
-.badge.idle{background:#37474f;color:#90a4ae}
-.badge.running{background:#1b5e20;color:#a5d6a7}
-.badge.pause{background:#e65100;color:#ffcc80}
-.badge.finish{background:#1565c0;color:#90caf9}
-.badge.failed{background:#b71c1c;color:#ef9a9a}
-.badge.prepare{background:#4a148c;color:#ce93d8}
-.badge.unknown{background:#37474f;color:#90a4ae}
+.card-header h2{font-size:16px;color:#f0f6fc}
+.badge{font-size:11px;padding:2px 10px;border-radius:10px;font-weight:600;text-transform:uppercase}
+.badge.idle{background:rgba(139,148,158,0.15);color:#8b949e}
+.badge.running{background:rgba(63,185,80,0.15);color:#3fb950}
+.badge.pause{background:rgba(210,153,34,0.15);color:#d29922}
+.badge.finish{background:rgba(88,166,255,0.15);color:#58a6ff}
+.badge.failed{background:rgba(218,54,51,0.15);color:#da3633}
+.badge.prepare{background:rgba(163,113,247,0.15);color:#a371f7}
+.badge.unknown{background:rgba(139,148,158,0.15);color:#8b949e}
 .card-body{display:flex;gap:16px}
-.thumb{width:100px;height:100px;border-radius:8px;overflow:hidden;background:#0f3460;flex-shrink:0}
+.thumb{width:100px;height:100px;border-radius:6px;overflow:hidden;background:#1c2128;flex-shrink:0;border:1px solid #30363d}
 .thumb img{width:100%;height:100%;object-fit:cover}
-.thumb .placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#556677;font-size:11px;text-align:center;padding:4px}
+.thumb .placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#484f58;font-size:11px;text-align:center;padding:4px}
 .info{flex:1;min-width:0}
-.info-row{display:flex;justify-content:space-between;padding:2px 0;font-size:13px;border-bottom:1px solid #1a1a2e}
-.info-row:last-child{border-bottom:none}
-.info-row .lbl{color:#8899aa}
-.info-row .val{color:#eaeaea;font-weight:600}
-.progress-bar{height:8px;background:#0f3460;border-radius:4px;overflow:hidden;margin:6px 0}
-.progress-bar .fill{height:100%;background:linear-gradient(90deg,#1db954,#2ecc71);border-radius:4px;transition:width .5s}
-.remain-row{font-size:20px;font-weight:700;color:#eaeaea;padding:2px 0;display:flex;align-items:center;gap:6px}
-.remain-row .lbl{font-size:13px;font-weight:400;color:#8899aa}
-.layer{font-size:12px;color:#556677;margin-top:2px}
-.no-printers{text-align:center;padding:48px;color:#556677;font-size:16px}
-.footer{margin-top:24px;text-align:center;color:#556677;font-size:11px}
+.info-row{display:flex;justify-content:space-between;padding:3px 0;font-size:13px}
+.info-row .lbl{color:#8b949e}
+.info-row .val{color:#c9d1d9;font-weight:600}
+.progress-bar{height:6px;background:#1c2128;border-radius:3px;overflow:hidden;margin:8px 0}
+.progress-bar .fill{height:100%;background:#238636;border-radius:3px;transition:width .5s}
+.remain-row{font-size:20px;font-weight:700;color:#f0f6fc;padding:2px 0;display:flex;align-items:center;gap:6px}
+.remain-row .lbl{font-size:13px;font-weight:400;color:#8b949e}
+.layer{font-size:12px;color:#484f58;margin-top:2px}
+.no-printers{text-align:center;padding:48px;color:#484f58;font-size:16px}
+.footer{text-align:center;padding:8px;color:#484f58;font-size:11px;border-top:1px solid #30363d;margin-top:24px}
 </style>
 </head>
 <body>
+<header><div class="logo"><img src="/Logo/bambutagger.png" alt=""><h1>BambuTagger Console</h1></div></header>
 <nav>
- <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
-  <div class="nav-links"><a href="/" class="active">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update">Firmware</a></div>
+<a href="/" class="active">Dashboard</a>
+<a href="/config/wifi">Settings</a>
+<a href="/update">Firmware</a>
 </nav>
 <div class="container">
-<div id="printers"><div class="no-printers">⏳ Waiting for printer data...</div></div>
+<div id="printers"><div class="no-printers">Loading printer data...</div></div>
 <div class="footer"><span id="ts"></span></div>
 </div>
 <script>
-// Track last thumb_gen per printer so we re-fetch when thumbnail changes
 var _thumbGen=[];
 function esc(s){const d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML}
 function cardHtml(idx){
@@ -103,12 +104,12 @@ function cardHtml(idx){
   +'<div class="card-body">'
   +'<div class="thumb"><div class="placeholder">NO<br>THUMB</div></div>'
   +'<div class="info">'
-  +'<div class="info-row" data-f="nozzle"><span class="lbl">Nozzle</span><span class="val"></span></div>'
-  +'<div class="info-row" data-f="bed"><span class="lbl">Bed</span><span class="val"></span></div>'
-  +'<div class="info-row" data-f="chamber"><span class="lbl">Chamber</span><span class="val"></span></div>'
-  +'<div class="info-row" data-f="speed"><span class="lbl">Speed</span><span class="val"></span></div>'
-  +'<div class="info-row" data-f="signal"><span class="lbl">Signal</span><span class="val"></span></div>'
-  +'<div class="info-row" data-f="sd"><span class="lbl">SD</span><span class="val"></span></div>'
+  +'<div class="info-row"><span class="lbl">Nozzle</span><span class="val" data-f="nozzle"></span></div>'
+  +'<div class="info-row"><span class="lbl">Bed</span><span class="val" data-f="bed"></span></div>'
+  +'<div class="info-row"><span class="lbl">Chamber</span><span class="val" data-f="chamber"></span></div>'
+  +'<div class="info-row"><span class="lbl">Speed</span><span class="val" data-f="speed"></span></div>'
+  +'<div class="info-row"><span class="lbl">Signal</span><span class="val" data-f="signal"></span></div>'
+  +'<div class="info-row"><span class="lbl">SD</span><span class="val" data-f="sd"></span></div>'
   +'<div class="progress-bar"><div class="fill" style="width:0%"></div></div>'
   +'<div class="remain-row"><span class="lbl job-name" style="flex:1;min-width:0"></span><span class="time" style="margin-left:auto"></span></div>'
   +'<div class="layer"></div>'
@@ -122,38 +123,31 @@ function updateCard(s){
  c.querySelector('.card-header h2').textContent=s.name||'Printer '+(s.idx+1);
  var b=c.querySelector('.badge');b.className='badge '+st;b.textContent=s.state||'?';
  var info=c.querySelector('.info');
- info.querySelector('[data-f="nozzle"] .val').textContent=s.temp_nozzle.toFixed(0)+'\u00b0'+(s.temp_nozzle_t?' / '+s.temp_nozzle_t.toFixed(0)+'\u00b0':'');
- info.querySelector('[data-f="bed"] .val').textContent=s.temp_bed.toFixed(0)+'\u00b0'+(s.temp_bed_t?' / '+s.temp_bed_t.toFixed(0)+'\u00b0':'');
- info.querySelector('[data-f="chamber"] .val').textContent=s.temp_chamber.toFixed(0)+'\u00b0';
- info.querySelector('[data-f="speed"] .val').textContent=s.speed_pct+'%';
- info.querySelector('[data-f="signal"] .val').textContent=s.wifi_signal?s.wifi_signal+'dBm':'--';
- info.querySelector('[data-f="sd"] .val').textContent=s.sd_present?'Yes':'No';
+ info.querySelector('[data-f="nozzle"]').textContent=s.temp_nozzle.toFixed(0)+'\u00b0'+(s.temp_nozzle_t?' / '+s.temp_nozzle_t.toFixed(0)+'\u00b0':'');
+ info.querySelector('[data-f="bed"]').textContent=s.temp_bed.toFixed(0)+'\u00b0'+(s.temp_bed_t?' / '+s.temp_bed_t.toFixed(0)+'\u00b0':'');
+ info.querySelector('[data-f="chamber"]').textContent=s.temp_chamber.toFixed(0)+'\u00b0';
+ info.querySelector('[data-f="speed"]').textContent=s.speed_pct+'%';
+ info.querySelector('[data-f="signal"]').textContent=s.wifi_signal?s.wifi_signal+'dBm':'--';
+ info.querySelector('[data-f="sd"]').textContent=s.sd_present?'Yes':'No';
  info.querySelector('.fill').style.width=(s.progress||0)+'%';
  info.querySelector('.job-name').textContent=s.job_name?esc(s.job_name):'';
  info.querySelector('.time').textContent=(s.remaining_min||0)+'m';
  info.querySelector('.layer').textContent=s.layer_total>0?'Layer '+s.layer_cur+'/'+s.layer_total:'';
-  // Thumbnail — only update src when has_thumb or thumb_gen changes.
-  // The MQTT callback resets g_web_status without a mutex, so a race
-  // between the HTTP handler and the callback can transiently report
-  // has_thumb=false.  To avoid flickering the placeholder, we never
-  // remove an existing <img> — once shown it stays until a new gen
-  // provides a replacement.
-  var thumb=c.querySelector('.thumb');
-  var gen=s.thumb_gen||0;
-  var prevGen=_thumbGen[s.idx]||-1;
-  if(s.has_thumb && gen!==prevGen){
-   _thumbGen[s.idx]=gen;
-   thumb.innerHTML='<img src="/api/thumb?idx='+s.idx+'&t='+gen+'" alt="thumb">';
-  }else if(!s.has_thumb && !thumb.querySelector('img')){
-   _thumbGen[s.idx]=-1;
-   thumb.innerHTML='<div class="placeholder">NO<br>THUMB</div>';
-  }
+ var thumb=c.querySelector('.thumb');
+ var gen=s.thumb_gen||0;
+ var prevGen=_thumbGen[s.idx]||-1;
+ if(s.has_thumb && gen!==prevGen){
+  _thumbGen[s.idx]=gen;
+  var img=thumb.querySelector('img');
+  if(img){img.src='/api/thumb?idx='+s.idx+'&t='+gen;}
+  else{thumb.innerHTML='<img src="/api/thumb?idx='+s.idx+'&t='+gen+'" alt="thumb">';}
+ }else if(!s.has_thumb && !thumb.querySelector('img')){
+  _thumbGen[s.idx]=-1;
+  thumb.innerHTML='<div class="placeholder">NO<br>THUMB</div>';}
 }
 function ensureCards(p){
  var c=document.getElementById('printers');
  if(!p.length){c.innerHTML='<div class="no-printers">No printers configured</div>';return}
- // Only rebuild if count changed — preserves existing <img> elements
- // (thumbnails) across the 2-second poll cycle.
  var cur=c.querySelectorAll('.card').length;
  if(cur==p.length) return;
  c.innerHTML='';
