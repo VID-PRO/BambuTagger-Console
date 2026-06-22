@@ -507,6 +507,7 @@
                 "LV_LVGL_H_INCLUDE_SIMPLE",
                 "MQTT_MAX_PACKET_SIZE=8192",
                 "CORE_DEBUG_LEVEL=3",
+                "ARDUINO_RUNNING_CORE=1",
                 "HAVE_CONFIG_H",
                 "MBEDTLS_CONFIG_FILE=\"mbedtls/esp_config.h\"",
                 "UNITY_INCLUDE_CONFIG_H",

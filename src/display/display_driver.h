@@ -360,7 +360,7 @@ public:
 
             cfg.panel       = &_panel_instance;
 
-            cfg.freq_write  = 16000000;
+            cfg.freq_write  = 14000000;
             cfg.pin_pclk    = GPIO_NUM_42;
             cfg.pin_hsync   = GPIO_NUM_39;
             cfg.pin_vsync   = GPIO_NUM_41;

@@ -2,8 +2,11 @@
  * main.cpp — BambuTagger-Console for ESP32-8048S043
  *
  * Architecture:
- *   Core 0 (Arduino loop):  LVGL tick + render
- *   Core 1 (FreeRTOS task): WiFi, MQTT, FTP thumbnail fetch
+ *   Core 0 (FreeRTOS task): WiFi, MQTT, FTP thumbnail fetch, sysman
+ *   Core 1 (Arduino loop):  LVGL tick + render (explicit ARDUINO_RUNNING_CORE=1)
+ *
+ *   WiFi.begin() temporarily pauses LVGL rendering via g_lvgl_paused
+ *   to avoid PSRAM bus contention between RGB DMA and WiFi crypto.
  *
  * Task flow:
  *   1. Boot → display init → show splash
@@ -30,12 +33,18 @@
 #include "ui/ui_manager.h"
 #include "ui/web_dashboard.h"
 #include "ota_update.h"
+#include "sysman.h"
 
 // ── Global LCD instance (declared extern in display_driver.h) ─
 LGFX lcd;
 
 // Flag set by config screen to trigger calibration from loop()
 static volatile bool g_run_calibration = false;
+
+// When true, loop() skips lv_timer_handler() — used to pause LVGL
+// rendering during WiFi.begin() so RGB DMA and WiFi don't contend
+// for PSRAM bandwidth, preventing display flicker/artifacts.
+static volatile bool g_lvgl_paused = false;
 
 // True when running in AP/portal mode (no network task, no UI)
 static bool g_portal_mode = false;
@@ -128,11 +137,18 @@ static void connectWifi() {
     WiFi.setHostname("BambuTagger-Console");
     WiFi.mode(WIFI_STA);
     WiFi.setTxPower(WIFI_POWER_13dBm);
+
+    // Pause LVGL rendering during WiFi.begin() to prevent PSRAM bus
+    // contention between RGB DMA (scanning out frame buffer) and
+    // WiFi radio init (crypto DMA + PSRAM access).
+    g_lvgl_paused = true;
     WiFi.begin(g_wifi_ssid, g_wifi_pass);
     unsigned long t = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) {
         delay(500);
     }
+    g_lvgl_paused = false;
+
     if (WiFi.status() == WL_CONNECTED) {
         log_i("WiFi connected: %s", WiFi.localIP().toString().c_str());
         wifi_sta_server_start();  // web config UI reachable at device IP
@@ -246,6 +262,7 @@ static void thumbTask(void *param) {
 // ─────────────────────────────────────────────────────────────
 static void networkTask(void *param) {
     loadCredentials();
+    g_lvgl_paused = true;
     connectWifi();
 
     // Configure per-printer status callbacks & start connections
@@ -347,6 +364,8 @@ static void networkTask(void *param) {
     bool last_mqtt_ok = false;
 
     for (;;) {
+        g_lvgl_paused = true;
+
         if (WiFi.status() != WL_CONNECTED) {
             connectWifi();
         } else if (!wifi_sta_server_active()) {
@@ -378,6 +397,7 @@ static void networkTask(void *param) {
             last_mqtt_ok = any_mqtt;
         }
 
+        g_lvgl_paused = false;
         vTaskDelay(pdMS_TO_TICKS(20));
     }
 }
@@ -455,9 +475,10 @@ void setup() {
     }
 
     // Mutexes
-    g_lv_mutex    = xSemaphoreCreateMutex();
-    g_thumb_mutex = xSemaphoreCreateMutex();
+    g_lv_mutex     = xSemaphoreCreateMutex();
+    g_thumb_mutex  = xSemaphoreCreateMutex();
     g_status_queue = xQueueCreate(8, sizeof(StatusUpdate));
+    sysman_init();
 
     // Route all mbedTLS heap allocations to PSRAM so that three
     // concurrent TLS connections (MQTT + FTPS ctrl + FTPS data)
@@ -507,7 +528,7 @@ void setup() {
             return;
         }
         if (xTaskCreatePinnedToCore(ota_task, "ota_update", 32768,
-                                    &g_ui.configWifiScreen(), 1, nullptr, 1)
+                                    &g_ui.configWifiScreen(), 1, nullptr, 0)
             != pdPASS) {
             LV_LOCK();
             g_ui.configWifiScreen().setStatusText(
@@ -524,13 +545,13 @@ void setup() {
         g_ui.setNumPrinters(g_printer_count);
     });
 
-    // Spawn network task on Core 1
+    // Spawn network task on Core 0
     g_thumb_queue = xQueueCreate(8, sizeof(ThumbRequest));
 
-    xTaskCreatePinnedToCore(networkTask, "network", 12288, nullptr, 2, nullptr, 1);
+    xTaskCreatePinnedToCore(networkTask, "network", 12288, nullptr, 2, nullptr, 0);
 
-    // Spawn thumbnail task on Core 1
-    xTaskCreatePinnedToCore(thumbTask,   "thumb",   20480, nullptr, 1, &g_thumb_task_handle, 1);
+    // Spawn thumbnail task on Core 0
+    xTaskCreatePinnedToCore(thumbTask,   "thumb",   20480, nullptr, 1, &g_thumb_task_handle, 0);
 
     log_i("Setup complete");
 }
@@ -567,7 +588,13 @@ void loop() {
     // Service HTTP first so web UI stays responsive when LVGL lock is contended
     wifi_portal_loop();
 
-    // Core 0: drive LVGL
+    // Core 1: drive LVGL (skip rendering while WiFi.begin() is active
+    // on Core 0 to avoid PSRAM bus contention with RGB DMA).
+    if (g_lvgl_paused) {
+        delay(5);
+        return;
+    }
+
     LV_LOCK();
 
     // Drain at most one deferred status update per frame so HTTP
