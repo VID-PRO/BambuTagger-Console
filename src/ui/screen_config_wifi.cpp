@@ -148,7 +148,7 @@ void ScreenConfigWiFi::loadValues(const char *ssid, const char *pass) {
 // ── Event: textarea focused → show keyboard ──────────────────
 void ScreenConfigWiFi::_ta_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t *ta = lv_event_get_target(e);
+    lv_obj_t *ta = lv_event_get_target_obj(e);
     auto *self = (ScreenConfigWiFi *)lv_event_get_user_data(e);
 
     if (code == LV_EVENT_FOCUSED) {

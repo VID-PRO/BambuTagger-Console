@@ -595,12 +595,10 @@ static const uint8_t logo_icon_map[9408] = {
 
 static const lv_img_dsc_t logo_icon = {
     .header = {
-        .cf        = LV_IMG_CF_TRUE_COLOR_ALPHA,
-        .always_zero = 0,
-        .reserved  = 0,
-        .w         = 56,
-        .h         = 56,
+        .cf   = LV_COLOR_FORMAT_RGB565A8,
+        .w    = 56,
+        .h    = 56,
     },
-    .data_size = 9408,
-    .data      = logo_icon_map,
+    .data_size   = 9408,
+    .data        = logo_icon_map,
 };

@@ -1,8 +1,8 @@
 #pragma once
 #include "lvgl.h"
 
-// 240x240, LV_IMG_CF_TRUE_COLOR_ALPHA
-// LV_COLOR_DEPTH=16: each pixel = RGB565 low-byte, RGB565 high-byte, alpha
+// 240x240, LV_COLOR_FORMAT_RGB565A8
+// each pixel = RGB565 low-byte, RGB565 high-byte, alpha
 static const uint8_t thumb_placeholder_data[172800] = {
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
   0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
@@ -7208,12 +7208,10 @@ static const uint8_t thumb_placeholder_data[172800] = {
 
 static const lv_img_dsc_t thumb_placeholder_dsc = {
   .header = {
-    .cf          = LV_IMG_CF_TRUE_COLOR_ALPHA,
-    .always_zero = 0,
-    .reserved    = 0,
-    .w           = 240,
-    .h           = 240,
+    .cf   = LV_COLOR_FORMAT_RGB565A8,
+    .w    = 240,
+    .h    = 240,
   },
-  .data_size = 172800,
-  .data      = thumb_placeholder_data,
+  .data_size   = 172800,
+  .data        = thumb_placeholder_data,
 };

@@ -210,7 +210,7 @@ void ScreenConfigPrinter::loadValues(const PrinterConfig configs[], int count) {
 // ── Event: textarea focused → show keyboard ──────────────────
 void ScreenConfigPrinter::_ta_event_cb(lv_event_t *e) {
     lv_event_code_t code = lv_event_get_code(e);
-    lv_obj_t *ta = lv_event_get_target(e);
+    lv_obj_t *ta = lv_event_get_target_obj(e);
     auto *self = (ScreenConfigPrinter *)lv_event_get_user_data(e);
 
     if (code == LV_EVENT_FOCUSED) {
@@ -237,7 +237,7 @@ void ScreenConfigPrinter::_kb_event_cb(lv_event_t *e) {
 void ScreenConfigPrinter::_count_btn_cb(lv_event_t *e) {
     if (lv_event_get_code(e) != LV_EVENT_CLICKED) return;
     auto *self = (ScreenConfigPrinter *)lv_event_get_user_data(e);
-    lv_obj_t *btn = lv_event_get_target(e);
+    lv_obj_t *btn = lv_event_get_target_obj(e);
 
     if (btn == self->_btn_plus && self->_num_printers < MAX_PRINTERS) {
         self->_num_printers++;

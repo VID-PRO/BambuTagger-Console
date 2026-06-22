@@ -110,6 +110,7 @@ static void connectWifi() {
     LV_LOCK(); g_ui.setConnecting(true); LV_UNLOCK();  // orange = connecting
     WiFi.setHostname("BambuTagger-Console");
     WiFi.mode(WIFI_STA);
+    WiFi.setTxPower(WIFI_POWER_13dBm);
     WiFi.begin(g_wifi_ssid, g_wifi_pass);
     unsigned long t = millis();
     while (WiFi.status() != WL_CONNECTED && millis() - t < 15000) {
@@ -191,12 +192,11 @@ static void thumbTask(void *param) {
             sprite.readRect(0, 0, THUMB_W, THUMB_H, (lgfx::rgb565_t *)g_thumb_rgb);
             sprite.deleteSprite();
 
-            g_thumb_dsc.header.always_zero = 0;
-            g_thumb_dsc.header.w           = THUMB_W;
-            g_thumb_dsc.header.h           = THUMB_H;
-            g_thumb_dsc.header.cf          = LV_IMG_CF_TRUE_COLOR;
-            g_thumb_dsc.data_size          = THUMB_W * THUMB_H * 2;
-            g_thumb_dsc.data               = g_thumb_rgb;
+            g_thumb_dsc.header.w   = THUMB_W;
+            g_thumb_dsc.header.h   = THUMB_H;
+            g_thumb_dsc.header.cf  = LV_COLOR_FORMAT_RGB565;
+            g_thumb_dsc.data_size  = THUMB_W * THUMB_H * 2;
+            g_thumb_dsc.data       = g_thumb_rgb;
 
             xSemaphoreTake(g_thumb_mutex, portMAX_DELAY);
             g_thumb_ready = true;
@@ -433,6 +433,11 @@ void setup() {
 }
 
 void loop() {
+    static uint32_t _last_tick = 0;
+    uint32_t now = millis();
+    lv_tick_inc(now - _last_tick);
+    _last_tick = now;
+
     // ── Portal mode: just drive LVGL + HTTP server ────────────
     if (g_portal_mode) {
         LV_LOCK();
@@ -446,13 +451,10 @@ void loop() {
     // Calibration requested from config screen — run outside LVGL lock
     if (g_run_calibration) {
         g_run_calibration = false;
-        // Hold the mutex so Core 1 doesn't touch LVGL during calibration
         LV_LOCK();
-        touch_cal_run(lcd);   // draws directly on LCD, blocks until done
-        // Restore display for LVGL (clear any LGFX-drawn pixels)
+        touch_cal_run(lcd);
         lcd.fillScreen(TFT_BLACK);
         LV_UNLOCK();
-        // Force a full LVGL redraw
         LV_LOCK();
         lv_obj_invalidate(lv_scr_act());
         LV_UNLOCK();
@@ -462,7 +464,6 @@ void loop() {
     // Core 0: drive LVGL
     LV_LOCK();
 
-    // Push decoded thumbnail if ready
     bool thumb_ready = false;
     int  thumb_pi    = -1;
     xSemaphoreTake(g_thumb_mutex, portMAX_DELAY);
@@ -483,7 +484,7 @@ void loop() {
     lv_timer_handler();
     LV_UNLOCK();
 
-    wifi_portal_loop();  // STA-mode config server (no-op if not started)
+    wifi_portal_loop();
     delay(5);
 }
 

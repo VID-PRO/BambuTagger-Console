@@ -317,7 +317,7 @@ size_t FtpsClient::_downloadFile(const char *path, uint8_t *buf, size_t max_byte
            millis() - t < RX_TIMEOUT) {
         if (data->available()) {
             int r = data->read(buf + total, max_bytes - total);
-            if (r > 0) { total += r; t = millis(); }
+            if (r > 0) { total += r; t = millis(); taskYIELD(); }
         } else delay(1);
     }
     data->stop();

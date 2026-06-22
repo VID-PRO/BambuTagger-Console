@@ -24,21 +24,24 @@ static void _init_scaled_place() {
     size_t sz = ow * oh * 3; // TRUE_COLOR_ALPHA: 3B/px
     uint8_t *buf = (uint8_t *)ps_malloc(sz);
     if (!buf) { log_e("ps_malloc scaled placeholder failed"); return; }
+    // source (thumb_placeholder_dsc) is v8 interleaved: {R_low, R_high, A} per pixel
+    // destination must be v9 planar: all RGB565 (w*h*2 bytes) then all alpha (w*h bytes)
     const uint8_t *src = (const uint8_t *)thumb_placeholder_dsc.data;
     for (int oy = 0; oy < oh; oy++) {
         int sy = (oy * sh + oh / 2) / oh;
         for (int ox = 0; ox < ow; ox++) {
             int sx = (ox * sw + ow / 2) / ow;
             int si = (sy * sw + sx) * 3;
-            int oi = (oy * ow + ox) * 3;
-            buf[oi]     = src[si];
-            buf[oi + 1] = src[si + 1];
-            buf[oi + 2] = src[si + 2]; // preserve alpha
+            int rgb_idx = (oy * ow + ox) * 2;
+            int alpha_idx = ow * oh * 2 + oy * ow + ox;
+            buf[rgb_idx]       = src[si];     // R_low
+            buf[rgb_idx + 1]   = src[si + 1]; // R_high
+            buf[alpha_idx]     = src[si + 2]; // Alpha
         }
     }
     _scaled_place.header.w   = ow;
     _scaled_place.header.h   = oh;
-    _scaled_place.header.cf  = LV_IMG_CF_TRUE_COLOR_ALPHA;
+    _scaled_place.header.cf  = LV_COLOR_FORMAT_RGB565A8;
     _scaled_place.data_size  = sz;
     _scaled_place.data       = buf;
 }
@@ -132,7 +135,7 @@ void ScreenOverview::_buildLayout() {
 
             // ── Job name (full width above thumbnail) ────────
             int info_x = 4 + thumb_w + 16;
-            int job_w  = ca_w - 88; // leave room for state badge on right
+            int job_w  = ca_w - 4;
             _cards[i].lbl_job = lv_label_create(_cards[i].root);
             lv_obj_set_style_text_font(_cards[i].lbl_job, &lv_font_montserrat_20, 0);
             lv_obj_set_style_text_color(_cards[i].lbl_job, COL_ACC, 0);
@@ -194,7 +197,7 @@ void ScreenOverview::_buildLayout() {
         } else {
             // Reposition existing card
             int ca_w = cw - 16;
-            int job_w = ca_w - 88;
+            int job_w = ca_w - 4;
             lv_obj_set_pos(_cards[i].root, x, y);
             lv_obj_set_size(_cards[i].root, cw, ch);
             lv_obj_set_width(_cards[i].bar_prog, ca_w - 80);
@@ -273,7 +276,7 @@ void ScreenOverview::setThumbnail(int idx, const lv_img_dsc_t *dsc) {
         if (!_cards[idx].thumb_buf) return;
         _cards[idx].thumb_dsc.header.w   = dw;
         _cards[idx].thumb_dsc.header.h   = dh;
-        _cards[idx].thumb_dsc.header.cf  = LV_IMG_CF_TRUE_COLOR;
+        _cards[idx].thumb_dsc.header.cf  = LV_COLOR_FORMAT_RGB565;
         _cards[idx].thumb_dsc.data_size  = dw * dh * 2;
         _cards[idx].thumb_dsc.data       = _cards[idx].thumb_buf;
     }
@@ -297,7 +300,7 @@ void ScreenOverview::setThumbnail(int idx, const lv_img_dsc_t *dsc) {
 // ─────────────────────────────────────────────────────────────
 void ScreenOverview::_card_static_cb(lv_event_t *e) {
     auto *self = (ScreenOverview *)lv_event_get_user_data(e);
-    lv_obj_t *target = lv_event_get_target(e);
+    lv_obj_t *target = lv_event_get_target_obj(e);
     // Find which card was tapped
     for (int i = 0; i < self->_num_printers; i++) {
         if (self->_cards[i].root == target) {

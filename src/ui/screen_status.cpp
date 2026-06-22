@@ -2,6 +2,31 @@
 #include "config.h"
 #include "thumb_placeholder.h"
 #include <stdio.h>
+#include <esp_log.h>
+#include <esp_heap_caps.h>
+#include <string.h>
+
+static const char *TAG = "status_scr";
+
+// v8 interleaved {R_low,R_high,A} -> v9 planar (RGB plane + alpha plane)
+static lv_img_dsc_t *_planar_placeholder = NULL;
+static void _ensure_planar_placeholder() {
+    if (_planar_placeholder) return;
+    const lv_img_dsc_t *src = &thumb_placeholder_dsc;
+    uint32_t n = (uint32_t)src->header.w * src->header.h;
+    uint8_t *planar = (uint8_t *)heap_caps_malloc(n * 3, MALLOC_CAP_SPIRAM);
+    if (!planar) { ESP_LOGE(TAG, "OOM placeholder planar"); return; }
+    const uint8_t *v8 = src->data;
+    for (uint32_t i = 0; i < n; i++) {
+        planar[i * 2]         = v8[i * 3];
+        planar[i * 2 + 1]     = v8[i * 3 + 1];
+        planar[n * 2 + i]     = v8[i * 3 + 2];
+    }
+    _planar_placeholder = (lv_img_dsc_t *)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_SPIRAM);
+    if (!_planar_placeholder) { heap_caps_free(planar); return; }
+    memcpy(_planar_placeholder, src, sizeof(lv_img_dsc_t));
+    _planar_placeholder->data = planar;
+}
 
 // ── Static style instances ────────────────────────────────────
 lv_style_t ScreenStatus::_style_badge_run;
@@ -97,7 +122,7 @@ void ScreenStatus::create(lv_obj_t *parent) {
     lv_label_set_text(_lbl_job, "No active print");
     lv_obj_align(_lbl_job, LV_ALIGN_LEFT_MID, 200, 0);
     lv_label_set_long_mode(_lbl_job, LV_LABEL_LONG_DOT);
-    lv_obj_set_width(_lbl_job, 290);
+    lv_obj_set_width(_lbl_job, 350);
 
     _lbl_state = lv_label_create(hdr);
     lv_obj_set_style_text_font(_lbl_state, &lv_font_montserrat_24, 0);
@@ -226,7 +251,8 @@ void ScreenStatus::create(lv_obj_t *parent) {
     lv_obj_center(lbl_stop);
 
     // ── Thumbnail placeholder ─────────────────────────────────
-    lv_img_set_src(_img_thumb, &thumb_placeholder_dsc);
+    _ensure_planar_placeholder();
+    lv_img_set_src(_img_thumb, _planar_placeholder ? _planar_placeholder : &thumb_placeholder_dsc);
 
     // ── No-connection overlay ─────────────────────────────────
     _lbl_noconn = lv_label_create(_root);
@@ -324,7 +350,8 @@ void ScreenStatus::setThumbnail(const lv_img_dsc_t *img_dsc) {
 }
 
 void ScreenStatus::clearThumbnail() {
-    lv_img_set_src(_img_thumb, &thumb_placeholder_dsc);
+    _ensure_planar_placeholder();
+    lv_img_set_src(_img_thumb, _planar_placeholder ? _planar_placeholder : &thumb_placeholder_dsc);
     lv_obj_invalidate(_img_thumb);
 }
 

@@ -435,30 +435,24 @@ public:
 extern LGFX lcd;
 
 // ── LVGL draw buffers ─────────────────────────────────────────
-// Buffers MUST be in internal DMA-capable SRAM — PSRAM is not DMA-accessible
-// on ESP32-S3 without a bounce buffer, causing partial-update tearing/flicker.
 // Two buffers of 40 lines each: 800×40×2 = 64 KB total — fits in internal RAM.
-static lv_disp_draw_buf_t _draw_buf;
-static lv_color_t        *_lvgl_buf1 = nullptr;
-static lv_color_t        *_lvgl_buf2 = nullptr;
+static uint8_t           *_lvgl_buf1 = nullptr;
+static uint8_t           *_lvgl_buf2 = nullptr;
 static constexpr size_t   LVGL_BUF_LINES = 40;
 
-// ── LVGL flush callback ───────────────────────────────────────
-// writePixels() is synchronous in LovyanGFX 1.2.21 — pixel data is fully
-// committed before we call lv_disp_flush_ready(), so no DMA wait needed.
-static void _lvgl_flush(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *buf) {
+// ── LVGL flush callback (v9 API) ──────────────────────────────
+static void _lvgl_flush(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map) {
     uint32_t w = area->x2 - area->x1 + 1;
     uint32_t h = area->y2 - area->y1 + 1;
     lcd.startWrite();
     lcd.setAddrWindow(area->x1, area->y1, w, h);
-    lcd.writePixels((lgfx::rgb565_t *)buf, w * h);
+    lcd.writePixels((lgfx::rgb565_t *)px_map, w * h);
     lcd.endWrite();
-    lv_disp_flush_ready(drv);
+    lv_display_flush_ready(disp);
 }
 
-// ── LVGL touch callback ───────────────────────────────────────
-// Reads GT911 directly via Wire1 — no LGFX touch layer involved.
-static void _lvgl_touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
+// ── LVGL touch callback (v9 API) ──────────────────────────────
+static void _lvgl_touch_read(lv_indev_t *indev, lv_indev_data_t *data) {
     static uint16_t _last_x = 0, _last_y = 0;
     uint16_t tx = 0, ty = 0;
     bool pressed = _gt911_get_touch(&tx, &ty);
@@ -477,42 +471,37 @@ static void _lvgl_touch_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     }
 }
 
-// ── Initialise display + LVGL ─────────────────────────────────
+// ── Initialise display + LVGL v9 ──────────────────────────────
 inline void display_init() {
-    // Hard-reset GT911, verify PID, leave Wire1 running.
-    // Touch reads bypass LGFX entirely — see _gt911_get_touch().
     gt911_init();
 
     bool init_ok = lcd.init();
     log_i("lcd.init() = %s", init_ok ? "OK" : "FAILED");
-    lcd.setRotation(0);          // rotate 0° (cable-down orientation)
+    lcd.setRotation(0);
     lcd.setBrightness(200);
     lcd.setColorDepth(16);
 
     lv_init();
 
-    // Allocate LVGL draw buffers in internal DMA-capable SRAM (not PSRAM).
-    // 800×40×2 B = 64 KB total — comfortably fits in ESP32-S3 internal RAM.
-    size_t buf_sz = LCD_WIDTH * LVGL_BUF_LINES;
-    _lvgl_buf1 = (lv_color_t *)heap_caps_malloc(buf_sz * sizeof(lv_color_t),
-                                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-    _lvgl_buf2 = (lv_color_t *)heap_caps_malloc(buf_sz * sizeof(lv_color_t),
-                                                 MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
-    assert(_lvgl_buf1 && _lvgl_buf2 && "LVGL DMA buffers failed — not enough internal RAM");
-    lv_disp_draw_buf_init(&_draw_buf, _lvgl_buf1, _lvgl_buf2, buf_sz);
+    // Allocate draw buffers in internal DMA-capable SRAM (not PSRAM).
+    // 800×40×2 = 64 KB per buffer — fits in ESP32-S3 internal RAM.
+    size_t buf_bytes = LCD_WIDTH * LVGL_BUF_LINES * 2;
+    _lvgl_buf1 = (uint8_t *)heap_caps_malloc(buf_bytes,
+                                             MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    _lvgl_buf2 = (uint8_t *)heap_caps_malloc(buf_bytes,
+                                             MALLOC_CAP_INTERNAL | MALLOC_CAP_DMA);
+    assert(_lvgl_buf1 && _lvgl_buf2 && "LVGL DMA buffers failed");
 
-    static lv_disp_drv_t disp_drv;
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.hor_res      = LCD_WIDTH;
-    disp_drv.ver_res      = LCD_HEIGHT;
-    disp_drv.flush_cb     = _lvgl_flush;
-    disp_drv.draw_buf     = &_draw_buf;
-    disp_drv.full_refresh = 0;   // only redraw dirty areas — reduces flicker
-    lv_disp_drv_register(&disp_drv);
+    // Create display
+    lv_display_t *disp = lv_display_create(LCD_WIDTH, LCD_HEIGHT);
+    lv_display_set_flush_cb(disp, _lvgl_flush);
+    lv_display_set_color_format(disp, LV_COLOR_FORMAT_RGB565);
+    lv_display_set_buffers(disp, _lvgl_buf1, _lvgl_buf2, buf_bytes,
+                           LV_DISPLAY_RENDER_MODE_PARTIAL);
 
-    static lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type    = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = _lvgl_touch_read;
-    lv_indev_drv_register(&indev_drv);
+    // Create input device
+    lv_indev_t *indev = lv_indev_create();
+    lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_read_cb(indev, _lvgl_touch_read);
+    lv_indev_set_display(indev, disp);
 }
