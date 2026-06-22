@@ -68,7 +68,7 @@ nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
 .badge.prepare{background:rgba(163,113,247,0.15);color:#a371f7}
 .badge.unknown{background:rgba(139,148,158,0.15);color:#8b949e}
 .card-body{display:flex;gap:16px}
-.thumb{width:100px;height:100px;border-radius:6px;overflow:hidden;background:#1c2128;flex-shrink:0;border:1px solid #30363d}
+.thumb{width:100px;height:100px;border-radius:6px;overflow:hidden;background:#0d1117;flex-shrink:0;border:1px solid #30363d}
 .thumb img{width:100%;height:100%;object-fit:cover}
 .thumb .placeholder{width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#484f58;font-size:11px;text-align:center;padding:4px}
 .info{flex:1;min-width:0}
