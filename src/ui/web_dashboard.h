@@ -44,7 +44,7 @@ static const char DASHBOARD_HTML[] PROGMEM = R"raw(
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-background:#0d1117;color:#c9d1d9;min-height:100vh;padding-bottom:32px}
+background:#0d1117;color:#c9d1d9;min-height:100vh;padding-bottom:28px}
 header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
 header .logo{display:flex;align-items:center;gap:10px}
 header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -81,7 +81,10 @@ nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
 .remain-row .lbl{font-size:13px;font-weight:400;color:#8b949e}
 .layer{font-size:12px;color:#484f58;margin-top:2px}
 .no-printers{text-align:center;padding:48px;color:#484f58;font-size:16px}
-.footer{text-align:center;padding:8px;color:#484f58;font-size:11px;border-top:1px solid #30363d;margin-top:24px}
+footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+footer a{color:#484f58;text-decoration:none}
+footer a:hover{color:#c9d1d9}
 </style>
 </head>
 <body>
@@ -93,8 +96,8 @@ nav a.active{color:#58a6ff;border-bottom-color:#58a6ff}
 </nav>
 <div class="container">
 <div id="printers"><div class="no-printers">Loading printer data...</div></div>
-<div class="footer"><span id="ts"></span></div>
 </div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 <script>
 var _thumbGen=[];
 function esc(s){const d=document.createElement('div');d.appendChild(document.createTextNode(s));return d.innerHTML}
@@ -159,7 +162,6 @@ async function refresh(){
   if(!r.ok)return;
   var d=await r.json();
   var p=d.printers||[];
-  document.getElementById('ts').textContent=new Date().toLocaleTimeString();
   ensureCards(p);
   for(var i=0;i<p.length;i++) updateCard(p[i]);
  }catch(e){}

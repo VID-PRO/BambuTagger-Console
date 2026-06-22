@@ -53,7 +53,7 @@ static const char _PORTAL_WIFI_TMPL[] PROGMEM = R"html(
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -75,6 +75,10 @@ static const char _PORTAL_WIFI_TMPL[] PROGMEM = R"html(
          background:#238636;color:#fff;border:none;border-radius:6px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
   button:hover{background:#2ea043}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 )html";
 // (styles continued below _SETTINGS_STYLE)
 static const char _PORTAL_WIFI_TMPL2[] PROGMEM = R"html(
@@ -98,6 +102,7 @@ static const char _PORTAL_WIFI_TMPL2[] PROGMEM = R"html(
   </form>
 </div>
 </div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 </body>
 </html>
 )html";
@@ -113,7 +118,7 @@ static const char _PORTAL_PRINTERS_TMPL[] PROGMEM = R"html(
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -143,6 +148,10 @@ static const char _PORTAL_PRINTERS_TMPL[] PROGMEM = R"html(
   button:hover{background:#2ea043}
   .hint{color:#484f58;font-size:.78em;margin-top:-7px;margin-bottom:10px}
   .printer-hide{display:none}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 </style>
 <script>
 function togglePrinters(n){
@@ -177,6 +186,7 @@ function togglePrinters(n){
   </form>
 </div>
 <script>togglePrinters(%%COUNT%%);</script>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 </body>
 </html>
 )html";
@@ -192,7 +202,7 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
 <link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -205,6 +215,10 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
   .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
   h1{color:#3fb950;font-size:2em;margin-bottom:10px}
   p{color:#8b949e}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 </style>
 <script>setTimeout(function(){location.href='/config'},15000);</script>
 </head>
@@ -220,6 +234,7 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
   <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 15 seconds&hellip;</p>
 </div>
 </div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 </body>
 </html>
 )html";
@@ -236,7 +251,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
 <title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -262,6 +277,10 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
   #status.info{display:block;background:rgba(88,166,255,0.1);color:#58a6ff}
   #status.ok{display:block;background:rgba(63,185,80,0.1);color:#3fb950}
   #status.err{display:block;background:rgba(218,54,51,0.1);color:#da3633}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 </style>
 </head>
 <body>
@@ -279,6 +298,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
   <button id="up-btn">Install Latest Version</button>
 </div>
 </div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 <script>
 (function(){
   var btn=document.getElementById('up-btn'),
@@ -354,7 +374,7 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
 <title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -367,6 +387,10 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
   .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
   h1{color:#3fb950;font-size:2em;margin-bottom:10px}
   p{color:#8b949e}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 </style>
 </head>
 <body>
@@ -381,6 +405,7 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
   <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 20 seconds&hellip;</p>
 </div>
 </div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 </body>
 </html>
 )html";
@@ -394,7 +419,7 @@ static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
 <title>BambuTagger Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh}
+  body{background:#0d1117;color:#c9d1d9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;min-height:100vh;padding-bottom:28px}
   header{background:#161b22;border-bottom:1px solid #30363d;padding:12px 24px}
   header .logo{display:flex;align-items:center;gap:10px}
   header .logo img{width:28px;height:28px;flex-shrink:0;border-radius:4px}
@@ -407,6 +432,10 @@ static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
   .card{background:#161b22;border:1px solid #30363d;border-radius:6px;padding:40px 32px;max-width:480px}
   h1{color:#da3633;font-size:1.6em;margin-bottom:10px}
   p{color:#8b949e}
+  footer{position:fixed;bottom:0;left:0;right:0;text-align:center;padding:6px;
+         font-size:10px;color:#484f58;background:#0d1117;border-top:1px solid #30363d}
+  footer a{color:#484f58;text-decoration:none}
+  footer a:hover{color:#c9d1d9}
 </style>
 </head>
 <body>
@@ -420,6 +449,8 @@ static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
   <p>%%MSG%%</p>
   <p style="margin-top:12px;font-size:.85em">Please try again or flash via serial.</p>
 </div>
+</div>
+<footer>&copy; 2026 by <a href="https://www.bambutagger.de" target="_blank">BambuTagger</a></footer>
 </body>
 </html>
 )html";
