@@ -37,24 +37,55 @@ void BambuClient::begin(const char *ip, const char *serial, const char *access_c
         _onMessage(topic, payload, len);
     });
 
-    // log_i("BambuClient configured for %s @ %s", _serial, _ip);
+    log_i("BambuClient configured for %s @ %s", _serial, _ip);
 }
 
 // ─────────────────────────────────────────────────────────────
 void BambuClient::loop() {
-    if (!_mqtt.connected()) {
-        unsigned long now = millis();
+    unsigned long now = millis();
+
+    // Only call _mqtt.loop() when there's data to process, or every
+    // ~10s for keepalive.  PubSubClient internally calls
+    // _client.connected() which triggers noisy "Unexpected: RES: 0"
+    // log spam on ESP32 when the underlying socket is dead.
+    bool has_data = _tls && _tls->available() > 0;
+    bool is_fresh = (now - _last_data_time < 60000UL);
+
+    bool needs_loop = has_data
+        || (_mqtt.connected() && now - _last_loop >= 10000UL)
+        || (is_fresh && now - _last_loop >= 10000UL);
+
+    if (needs_loop) {
+        _last_loop = now;
+        _mqtt.loop();
+    }
+
+    // Reconnect when PubSubClient admits the connection is gone AND
+    // data is stale (or was never received).  Without the freshness
+    // guard a false-negative _mqtt.connected() would trigger needless
+    // reconnects while data is still flowing.
+    if (!_mqtt.connected() && (!_has_received_data || !is_fresh)) {
         if (now - _last_connect_attempt >= RECONNECT_INTERVAL) {
             _last_connect_attempt = now;
             _connect();
         }
-        return;
     }
-    _mqtt.loop();
 }
 
 // ─────────────────────────────────────────────────────────────
-bool BambuClient::isConnected() { return _mqtt.connected(); }
+bool BambuClient::isConnected() { return _mqtt.connected() || _tls->available() > 0; }
+
+bool BambuClient::isConnectedOrFresh(unsigned long graceMs) {
+    // PubSubClient::connected() can false-negative on ESP32 WiFiClientSecure.
+    // We self-report "connected" when:
+    //   1. PubSubClient says connected, OR
+    //   2. The raw TLS client has data waiting, OR
+    //   3. Data was received within the grace window (bypasses connected() bug).
+    if (!_has_received_data) return false;
+    return _mqtt.connected()
+        || (_tls && _tls->available() > 0)
+        || (millis() - _last_data_time < graceMs);
+}
 
 // ─────────────────────────────────────────────────────────────
 void BambuClient::requestFullUpdate() {
@@ -87,10 +118,13 @@ void BambuClient::stop() {
 void BambuClient::_connect() {
     // log_i("MQTT connecting to %s …", _ip);
 
-    // Delete and recreate the TLS client on every attempt.
-    // Calling stop() on a WiFiClientSecure value-member leaves the socket fd
-    // in an invalid state (errno 9) — a fresh heap object avoids that entirely.
-    if (_tls) { _tls->stop(); delete _tls; }
+    if (_tls) {
+        _tls->stop();
+        // Drain any residual data before closing so the TCP stack doesn't
+        // leave stale bytes that interfere with the next connection.
+        while (_tls->available() > 0) { uint8_t tmp[64]; _tls->read(tmp, 64); }
+        delete _tls;
+    }
     _tls = new WiFiClientSecure();
     _tls->setInsecure();     // Bambu uses a self-signed certificate
     _tls->setTimeout(10);    // seconds
@@ -112,6 +146,8 @@ void BambuClient::_connect() {
 // ─────────────────────────────────────────────────────────────
 void BambuClient::_onMessage(const char *topic, uint8_t *payload, unsigned int len) {
     // log_i("MQTT msg: topic=%s len=%u", topic, len);
+    _last_data_time = millis();
+    _has_received_data = true;
 
     // Parse JSON
     JsonDocument doc;

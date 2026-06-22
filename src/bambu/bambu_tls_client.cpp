@@ -17,14 +17,14 @@
 // ESP32 — it is safe to free PSRAM allocations with heap_caps_free even after
 // the platform allocator has been restored to the default calloc/free.
 // ═══════════════════════════════════════════════════════════════════════════════
-static void *_ps_calloc(size_t n, size_t sz) {
+void *ps_mbedtls_calloc(size_t n, size_t sz) {
     size_t total = n * sz;
     void  *p     = heap_caps_malloc(total, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
     if (p)  memset(p, 0, total);
     else    p = calloc(n, sz);   // fall back to internal SRAM if PSRAM full
     return p;
 }
-static void _ps_free(void *p) { heap_caps_free(p); }
+void ps_mbedtls_free(void *p) { heap_caps_free(p); }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // mbedTLS I/O callbacks  (WiFiClient as TCP transport)
@@ -66,9 +66,6 @@ bool BambuTlsClient::connect(const char *host, uint16_t port,
         log_w("BambuTls: TCP connect failed → %s:%d", host, port);
         return false;
     }
-
-    // ── Redirect mbedTLS heap to PSRAM for the data channel ─────────────────
-    if (use_psram) mbedtls_platform_set_calloc_free(_ps_calloc, _ps_free);
 
     // ── Initialise mbedTLS contexts ──────────────────────────────────────────
     mbedtls_ssl_init(&_ssl);
@@ -129,9 +126,6 @@ bool BambuTlsClient::connect(const char *host, uint16_t port,
                  ret == MBEDTLS_ERR_SSL_WANT_WRITE);
     }
 
-    // Restore default allocator now that handshake (and all its allocs) is done
-    if (use_psram) mbedtls_platform_set_calloc_free(calloc, free);
-
     if (ret != 0) {
         char errbuf[80];
         mbedtls_strerror(ret, errbuf, sizeof(errbuf));
@@ -147,7 +141,6 @@ bool BambuTlsClient::connect(const char *host, uint16_t port,
     return true;
 
 fail:
-    if (use_psram) mbedtls_platform_set_calloc_free(calloc, free);
     _cleanup();
     return false;
 }

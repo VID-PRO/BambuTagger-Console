@@ -25,8 +25,10 @@
 #include "display/touch_calibration.h"
 #include "wifi_portal.h"
 #include "bambu/bambu_client.h"
+#include "bambu/bambu_tls_client.h"
 #include "bambu/ftps_client.h"
 #include "ui/ui_manager.h"
+#include "ui/web_dashboard.h"
 #include "ota_update.h"
 
 // ── Global LCD instance (declared extern in display_driver.h) ─
@@ -51,6 +53,21 @@ static lv_img_dsc_t       g_thumb_dsc  = {};
 static uint8_t           *g_thumb_rgb  = nullptr;   // decoded RGB565 in PSRAM
 static bool               g_thumb_ready= false;     // new frame available
 static int                g_thumb_ready_pi = -1;    // printer index for ready frame
+
+// ── Deferred LVGL update queue ───────────────────────────────
+// MQTT callback enqueues status snapshots; main loop drains them
+// inside LV_LOCK so Core 1 never holds the lock, keeping HTTP fast.
+struct StatusUpdate {
+    int idx;
+    PrinterStatus status;
+};
+static QueueHandle_t g_status_queue = nullptr;
+
+// ── Web dashboard globals ───────────────────────────────────
+WebPrinterStatus g_web_status[WEB_DASHBOARD_MAX_PRINTERS] = {};
+int              g_web_printer_count = 0;
+uint8_t         *g_web_thumb_buf[WEB_DASHBOARD_MAX_PRINTERS] = {};
+size_t           g_web_thumb_sz[WEB_DASHBOARD_MAX_PRINTERS] = {};
 
 // Credentials (loaded from NVS)
 static char g_wifi_ssid[64]  = DEFAULT_WIFI_SSID;
@@ -119,6 +136,7 @@ static void connectWifi() {
     if (WiFi.status() == WL_CONNECTED) {
         log_i("WiFi connected: %s", WiFi.localIP().toString().c_str());
         wifi_sta_server_start();  // web config UI reachable at device IP
+        register_dashboard_routes(_portal_server);
         LV_LOCK(); g_ui.setConnecting(false); LV_UNLOCK(); // green = WiFi up
     } else {
         log_w("WiFi connect timeout");
@@ -159,6 +177,21 @@ static void thumbTask(void *param) {
         }
 
         size_t png_sz = g_ftp[req.printer].downloadThumbnail(req.job, req.gcode, g_thumb_buf, 256*1024);
+
+        // Save thumbnail for web dashboard
+        if (png_sz > 0 && png_sz <= WEB_THUMB_MAX_SIZE) {
+            if (!g_web_thumb_buf[req.printer]) {
+                g_web_thumb_buf[req.printer] = (uint8_t *)ps_malloc(WEB_THUMB_MAX_SIZE);
+            }
+            if (g_web_thumb_buf[req.printer]) {
+                memcpy(g_web_thumb_buf[req.printer], g_thumb_buf, png_sz);
+                g_web_thumb_sz[req.printer] = png_sz;
+                g_web_status[req.printer].has_thumb = true;
+                g_web_status[req.printer].thumb_gen++;
+            }
+        }
+        g_web_printer_count = g_printer_count;
+
         if (png_sz == 0) {
             log_w("Thumbnail download failed, showing placeholder");
             LV_LOCK();
@@ -227,9 +260,39 @@ static void networkTask(void *param) {
                 snprintf(sc.name, sizeof(sc.name), "3DP-%.3s-%.3s",
                          ser, slen >= 3 ? ser + slen - 3 : ser);
             }
-            LV_LOCK();
-            g_ui.updateStatus(i, sc);
-            LV_UNLOCK();
+
+            // Defer LVGL update to the main loop so Core 1 never holds
+            // LV_LOCK, which would block HTTP processing on Core 0.
+            if (g_status_queue) {
+                StatusUpdate su;
+                su.idx    = i;
+                su.status = sc;
+                if (xQueueSend(g_status_queue, &su, 0) != pdTRUE) {
+                    // Queue full — drop this frame; next one will follow.
+                }
+            }
+
+            // Update web dashboard status (preserve thumb_gen across resets)
+            uint8_t old_gen = g_web_status[i].thumb_gen;
+            bool    old_thumb = g_web_status[i].has_thumb;
+            g_web_status[i] = {};
+            g_web_status[i].thumb_gen = old_gen;
+            g_web_status[i].has_thumb = old_thumb;
+            strncpy(g_web_status[i].name,         sc.name,            sizeof(g_web_status[i].name) - 1);
+            strncpy(g_web_status[i].state,        sc.state_str,         sizeof(g_web_status[i].state) - 1);
+            strncpy(g_web_status[i].job_name,     sc.job_name,        sizeof(g_web_status[i].job_name) - 1);
+            g_web_status[i].progress      = sc.progress;
+            g_web_status[i].remaining_min = sc.remaining_min;
+            g_web_status[i].temp_nozzle   = sc.temp_nozzle;
+            g_web_status[i].temp_nozzle_t = sc.temp_nozzle_t;
+            g_web_status[i].temp_bed      = sc.temp_bed;
+            g_web_status[i].temp_bed_t    = sc.temp_bed_t;
+            g_web_status[i].temp_chamber  = sc.temp_chamber;
+            g_web_status[i].layer_cur    = sc.layer_cur;
+            g_web_status[i].layer_total  = sc.layer_total;
+            g_web_status[i].speed_pct    = sc.speed_pct;
+            g_web_status[i].wifi_signal  = atoi(sc.wifi_signal);
+            g_web_status[i].sd_present   = sc.sd_present;
 
             if (s.fresh_thumb && strlen(s.job_name) > 0) {
                 log_i("MQTT thumb trigger printer=%d job=%s", i, s.job_name);
@@ -261,16 +324,40 @@ static void networkTask(void *param) {
     g_ui.setNumPrinters(g_printer_count);
     LV_UNLOCK();
 
+    // Track MQTT data freshness independently of PubSubClient::connected(),
+    // which can falsely return false on ESP32 WiFiClientSecure.
+    // The status callback below sets this on every incoming MQTT message.
+    static unsigned long _last_mqtt_data[MAX_PRINTERS] = {0};
+
+    for (int i = 0; i < g_printer_count; i++) {
+        // Update the status callback to also stamp the data timer.
+        // We do this by wrapping the callback registered above.
+        // Actually, we just read _last_data_time from the BambuClient.
+    }
+
     bool last_wifi_ok = false;
     bool last_mqtt_ok = false;
 
     for (;;) {
-        if (WiFi.status() != WL_CONNECTED) connectWifi();
+        if (WiFi.status() != WL_CONNECTED) {
+            connectWifi();
+        } else if (!wifi_sta_server_active()) {
+            // WiFi connected but the initial connectWifi() timed out before
+            // the association completed.  Start the web server now.
+            wifi_sta_server_start();
+            register_dashboard_routes(_portal_server);
+            LV_LOCK(); g_ui.setConnecting(false); LV_UNLOCK();
+        }
 
+        // Track MQTT data freshness via the last-received timestamp.
+        // This is more reliable than PubSubClient::connected() which can
+        // false-negative on ESP32 WiFiClientSecure.
         bool any_mqtt = false;
         for (int i = 0; i < g_printer_count; i++) {
             g_bambu[i].loop();
-            if (g_bambu[i].isConnected()) any_mqtt = true;
+            // g_bambu[i] updates _last_data_time in _onMessage().
+            // If we ever received data on this instance, check freshness.
+            if (g_bambu[i].isConnectedOrFresh()) any_mqtt = true;
         }
 
         bool wifi_ok = (WiFi.status() == WL_CONNECTED);
@@ -362,6 +449,14 @@ void setup() {
     // Mutexes
     g_lv_mutex    = xSemaphoreCreateMutex();
     g_thumb_mutex = xSemaphoreCreateMutex();
+    g_status_queue = xQueueCreate(8, sizeof(StatusUpdate));
+
+    // Route all mbedTLS heap allocations to PSRAM so that three
+    // concurrent TLS connections (MQTT + FTPS ctrl + FTPS data)
+    // don't exhaust internal DMA-capable SRAM.  esp-aes hardware
+    // uses heap_caps_malloc(MALLOC_CAP_DMA) internally so its DMA
+    // buffers bypass this calloc redirect.
+    mbedtls_platform_set_calloc_free(ps_mbedtls_calloc, ps_mbedtls_free);
 
     // ── Check for saved WiFi credentials ─────────────────────
     if (!wifi_portal_has_credentials()) {
@@ -440,10 +535,10 @@ void loop() {
 
     // ── Portal mode: just drive LVGL + HTTP server ────────────
     if (g_portal_mode) {
+        wifi_portal_loop();
         LV_LOCK();
         lv_timer_handler();
         LV_UNLOCK();
-        wifi_portal_loop();
         delay(5);
         return;
     }
@@ -461,8 +556,20 @@ void loop() {
         return;
     }
 
+    // Service HTTP first so web UI stays responsive when LVGL lock is contended
+    wifi_portal_loop();
+
     // Core 0: drive LVGL
     LV_LOCK();
+
+    // Drain at most one deferred status update per frame so HTTP
+    // (serviced above, outside the lock) always gets a turn in the
+    // next iteration — prevents the web UI from starving when MQTT
+    // data arrives faster than LVGL can process it.
+    StatusUpdate su;
+    if (g_status_queue && xQueueReceive(g_status_queue, &su, 0) == pdTRUE) {
+        g_ui.updateStatus(su.idx, su.status);
+    }
 
     bool thumb_ready = false;
     int  thumb_pi    = -1;
@@ -484,7 +591,6 @@ void loop() {
     lv_timer_handler();
     LV_UNLOCK();
 
-    wifi_portal_loop();
     delay(5);
 }
 

@@ -73,6 +73,9 @@ public:
     /** Returns true when connected to the printer MQTT broker. */
     bool isConnected();
 
+    /** Returns true if MQTT is connected OR data was received within graceMs. */
+    bool isConnectedOrFresh(unsigned long graceMs = 60000);
+
     /** Register callback for parsed status updates. */
     void onStatus(StatusCallback cb) { _cb = cb; }
 
@@ -109,6 +112,9 @@ private:
     PrinterStatus    _status;
 
     unsigned long _last_connect_attempt = 0;
-    char          _last_job_name[64]    = {};
-    static constexpr unsigned long RECONNECT_INTERVAL = 30000; // 30s between attempts
+    unsigned long _last_data_time      = 0;
+    unsigned long _last_loop           = 0;   // throttle _mqtt.loop() on dead sockets
+    bool          _has_received_data   = false;
+    char          _last_job_name[64]   = {};
+    static constexpr unsigned long RECONNECT_INTERVAL = 5000; // 5s between attempts
 };

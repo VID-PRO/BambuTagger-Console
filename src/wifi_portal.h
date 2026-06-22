@@ -33,23 +33,99 @@ void ota_display_end();
 // Shared HTML template (AP setup + STA edit form)
 // Placeholder %%VALS%% is replaced at runtime with pre-filled values
 // ─────────────────────────────────────────────────────────────
-static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
+// ── Shared styles for both settings pages ────────────────────
+static const char _SETTINGS_STYLE[] PROGMEM = R"(
+.subnav{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid #1e3a5f}
+.subnav a{padding:8px 18px;color:#8899aa;text-decoration:none;font-size:13px;font-weight:600;
+          border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.subnav a:hover{color:#eaeaea}
+.subnav a.active{color:#1db954;border-bottom-color:#1db954}
+)";
+
+// ── WiFi settings page ────────────────────────────────────────
+static const char _PORTAL_WIFI_TMPL[] PROGMEM = R"html(
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BambuTagger-Console</title>
+<title>BambuTagger-Console — WiFi</title>
+<link rel="icon" href="/Logo/bambutagger.png">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
-       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .nav-links a:hover{background:#0f3460;color:#eaeaea}
+  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:16px}
   .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:480px;
         box-shadow:0 4px 24px rgba(0,0,0,.5)}
-  h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
-  .sub{color:#8899aa;font-size:.85em;margin-bottom:22px}
   h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
-     margin:18px 0 8px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
+     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
+  label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
+  input{display:block;width:100%;padding:10px 12px;margin-bottom:10px;
+        background:#0f3460;color:#eaeaea;border:1px solid #2d3561;border-radius:6px;
+        font-size:.95em;outline:none;transition:border .2s}
+  input:focus{border-color:#1db954}
+  button{display:block;width:100%;padding:13px;margin-top:6px;
+         background:#1db954;color:#fff;border:none;border-radius:8px;
+         font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
+  button:hover{background:#17a845}
+)html";
+// (styles continued below _SETTINGS_STYLE)
+static const char _PORTAL_WIFI_TMPL2[] PROGMEM = R"html(
+</style>
+</head>
+<body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+ <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a></div>
+</nav>
+<div class="wrapper">
+<div class="card">
+  <div class="subnav"><a href="/config/wifi" class="active">WiFi</a><a href="/config/printers">Printers</a></div>
+  <h2>WiFi Settings</h2>
+  <form method="post" action="/save">
+    <label>SSID</label>
+    <input name="ssid" placeholder="Your WiFi network name" required autocomplete="off" %%SSID%%>
+    <label>Password</label>
+    <input name="pass" type="password" placeholder="WiFi password" autocomplete="off" %%PASS%%>
+    <button type="submit">Save &amp; Reboot</button>
+  </form>
+</div>
+</div>
+</body>
+</html>
+)html";
+
+// ── Printers settings page ───────────────────────────────────
+static const char _PORTAL_PRINTERS_TMPL[] PROGMEM = R"html(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BambuTagger-Console — Printers</title>
+<link rel="icon" href="/Logo/bambutagger.png">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .nav-links a:hover{background:#0f3460;color:#eaeaea}
+  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:16px}
+  .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:480px;
+        box-shadow:0 4px 24px rgba(0,0,0,.5)}
+  h2{color:#90caf9;font-size:.9em;letter-spacing:.05em;text-transform:uppercase;
+     margin:0 0 16px;padding-bottom:4px;border-bottom:1px solid #1e3a5f}
   .printer-section{border:1px solid #1e3a5f;border-radius:8px;padding:12px;margin:8px 0}
   .printer-section h3{color:#eaeaea;font-size:.9em;margin:0 0 8px}
   label{display:block;color:#8899aa;font-size:.8em;margin-bottom:3px}
@@ -61,6 +137,11 @@ static const char _PORTAL_PAGE_TMPL[] PROGMEM = R"html(
          background:#1db954;color:#fff;border:none;border-radius:8px;
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
   button:hover{background:#17a845}
+  .subnav{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid #1e3a5f}
+  .subnav a{padding:8px 18px;color:#8899aa;text-decoration:none;font-size:13px;font-weight:600;
+            border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+  .subnav a:hover{color:#eaeaea}
+  .subnav a.active{color:#1db954;border-bottom-color:#1db954}
   .hint{color:#6c757d;font-size:.78em;margin-top:-7px;margin-bottom:10px}
   .printer-hide{display:none}
 </style>
@@ -72,20 +153,17 @@ function togglePrinters(n){
   }
 }
 </script>
-<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEQf8A/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg==" type="image/svg+xml" />
 </head>
 <body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+ <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi" class="active">Settings</a><a href="/update">Firmware</a></div>
+</nav>
+<div class="wrapper">
 <div class="card">
-  <h1><img style="vertical-align:middle;" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAMAAABEpIrGAAAA51BMVEVMaXF8wXEAAAB5vW5jrFt7wHB8wnF+1nd6vm96vm9oo15bkVN0tWlqpmB6v28gMx1Ld0MrVDBDazximllvrWRknVtVhU5bkFJ1t2tbkFNXjFB4u21nol13uWxxsWdqpmB4u21sqmNnol1xsGdxsWc2VzBwsGZglVdqpmBXik5tq2NUhEpppF9elVVurGRztGhvrWRjm1pjnFtztGlysmd4u21sqWI3XDNwsGZysmhppF92uWt0tGlknFpZjlFbkVN40nh9wnJ+xXOByHV7wHCByXaDy3eCyneDzXiAx3SJ1HyH0XqN3IFujF/lAAAAQXRSTlMA+gH5Afz9Av77gDjWe/kHHAQUZ7lXJ0HzPSH8bO3RivOeXqW3DchEkTKFLXRIseLDTV7KwOeWIZKup93rlnpTCMyoTDkAAAAJcEhZcwAALiMAAC4jAXilP3YAAALRSURBVHicZZPncuM4EISbAYGkGCRROeccncMGggAoSn7/59mSfL711fW/wXw1NYPqBj5lMwBRrfzzZ3nzBICZ+I8YQ6kc17nSWsn6dB1dX773EfrvqaLEIMQIZJrV3Qm+EQxeV4uAplpwLrWigTh1vb8EQ8VSAdXWflmZ1Q5+XM+olVrDL4KhQhMrtearr8Uit68sKsqfBEPDSixdWMD+Gmmjep8FNJhdCRulQmpl4wnsoudu7+/HvVoIhKMsyN8i2GBY6iC7nwCzPTmfPz7O52R6AIovmaWfryOaHZk8NGG6/Gx0B6476Brn5DFEqZDLfhWAnwWiDCxPadwoXjcIa3F+GQCVJMiWgHmXi0IIbHXPBMIoCgG4agqY97dOs0+UjyJKtSJK7t37e7cXoTgroYh2Lq0FDlLyBhhjNqqFy1mI83m3uNYM1RYVQ6zzpH7Fr+d8dNzVqv32cVu+aE52ycmFq0T3V6Gw7zXQnC9QORab8yYavX1hV47TbH4DjjpVmsdVYHC5xCaqMdcqvbTHKpvDT5P3RV86Dj11GsUHGhglr3OijsOtzVToHiqJbD29aEdyK32ovpwvd09vmSUlT++e6lS1sbJIOlxxyqV0TqPo9TVanhwpOUkPNUHkBmFBqDF8TR3Ok04ETN4E545xesRAyU4JeNak5cF3dMIJ3wCrFiGJlj1U+1KNAHgWSccmvG09yUUFqMk8qcczYKQcubn+z0gH+RrMjGplawQ8y3YtMhnaIsjGN0NVHxJCKmBgOIiXgRqC2QwVh9DgZlyGoSCUuCbYbxyFXuM3s9EmNEjXX6b0U8NQU8+0gWkBsE0vFjQ4Pf61tZ8LSzlTd/ar0zp6/p4oR6i5af9jc5Nh2NGGkWtJkyThWRoYul/+nk+G5pbrxDACxwkMIrSzrYL9G4MbgcZgx3OdZTpv7R69/+X7GuZJo/zj9fXHcRF+1jf9AXw/ZhEkocSxAAAAAElFTkSuQmCC" alt="bambutagger_resize" />&nbsp;BambuTagger-Console</h1>
-  <p class="sub">WiFi &amp; printer configuration</p>
+  <div class="subnav"><a href="/config/wifi">WiFi</a><a href="/config/printers" class="active">Printers</a></div>
+  <h2>Printer Settings</h2>
   <form method="post" action="/save">
-    <h2>WiFi</h2>
-    <label>SSID</label>
-    <input name="ssid" placeholder="Your WiFi network name" required autocomplete="off" %%SSID%%>
-    <label>Password</label>
-    <input name="pass" type="password" placeholder="WiFi password" autocomplete="off" %%PASS%%>
-
-    <h2>Printers</h2>
     <label style="display:inline">Number of printers:</label>
     <select name="bam_count" onchange="togglePrinters(parseInt(this.value))"
             style="display:inline-block;width:auto;padding:6px 10px;margin-bottom:12px;
@@ -101,11 +179,6 @@ function togglePrinters(n){
 
     <button type="submit">Save &amp; Reboot</button>
   </form>
-  <div style="margin-top:16px;padding-top:14px;border-top:1px solid #1e3a5f;text-align:center">
-    <a href="/update" style="color:#90caf9;font-size:.85em;text-decoration:none"
-       onmouseover="this.style.textDecoration='underline'"
-       onmouseout="this.style.textDecoration='none'">&#9654; Firmware Update</a>
-  </div>
 </div>
 <script>togglePrinters(%%COUNT%%);</script>
 </body>
@@ -118,23 +191,35 @@ static const char _PORTAL_SAVED_HTML[] PROGMEM = R"html(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="refresh" content="15;url=/">
+<meta http-equiv="refresh" content="15;url=/config">
 <title>BambuTagger-Console</title>
+<link rel="icon" href="/Logo/bambutagger.png">
 <style>
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
-       min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
   .card{background:#16213e;border-radius:12px;padding:40px 32px}
   h1{color:#1db954;font-size:2em;margin-bottom:10px}
   p{color:#8899aa}
 </style>
-<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgAgMAAAAOFJJnAAABhWlDQ1BJQ0MgcHJvZmlsZQAAKJF9kb9Lw0AcxV9bS6VUHawg4pChOrWLijiWKhbBQmkrtOpgcukvaNKQpLg4Cq4FB38sVh1cnHV1cBUEwR8g/gHipOgiJX4vKbSI8eC4D+/uPe7eAd5WjSlGXxxQVFPPJBNCvrAqBF7hRxAjGERUZIaWyi7m4Dq+7uHh612MZ7mf+3MMyEWDAR6BOM403STeIJ7dNDXO+8RhVhFl4nPiqE4XJH7kuuTwG+eyzV6eGdZzmXniMLFQ7mGph1lFV4hniCOyolK+N++wzHmLs1JrsM49+QtDRXUly3Wa40hiCSmkIUBCA1XUYCJGq0qKgQztJ1z8Y7Y/TS6JXFUwciygDgWi7Qf/g9/dGqXpKScplAD8L5b1MQEEdoF207K+jy2rfQL4noErteuvt4C5T9KbXS1yBAxtAxfXXU3aAy53gNEnTdRFW/LR9JZKwPsZfVMBGL4FgmtOb519nD4AOepq+QY4OAQmy5S97vLu/t7e/j3T6e8HrYRyvp7c8c0AAAAJUExURXIA83m/boC9efRkY8YAAAABdFJOUwBA5thmAAAAAWJLR0QAiAUdSAAAAL1JREFUGNNNkLEKg0AMhv8GHO52H0FR36SbCJHD6XASn+Lazb1XHG8R1Kds7kqLgZAvGZL/D3CJbXCp1sxTAs/cx5HmvWErUJhvYgsA9QJv6AAvzUqeXe5Au5qPNrMyL4GXslCuAppbK4B6AhkUDr6PUDpYBQiUgZw2Bs02KJsn4KVjgWLh+8idQbawVTwaqGeERwttfZv1coKMXrMgR2lFVcX9f2GIm5PUwpBL4omPOdlJBpNT9bOM87y+5AM/WTesHvLO9wAAAABJRU5ErkJggg==" type="image/svg+xml" />
-<script>setTimeout(function(){location.href='/'},15000);</script>
+<script>setTimeout(function(){location.href='/config'},15000);</script>
 </head>
 <body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+ <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update">Firmware</a></div>
+</nav>
+<div class="wrapper">
 <div class="card">
   <h1>&#10003; Saved!</h1>
   <p>Settings stored. Device is rebooting&hellip;</p>
   <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 15 seconds&hellip;</p>
+</div>
 </div>
 </body>
 </html>
@@ -152,8 +237,15 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
 <title>BambuTagger-Console — Update</title>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
-       min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .nav-links a:hover{background:#0f3460;color:#eaeaea}
+  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:32px 16px}
   .card{background:#16213e;border-radius:12px;padding:28px;width:100%;max-width:440px;
         box-shadow:0 4px 24px rgba(0,0,0,.5)}
   h1{color:#1db954;font-size:1.4em;margin-bottom:4px}
@@ -167,8 +259,6 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
          font-size:1.05em;font-weight:bold;cursor:pointer;transition:background .2s}
   button:hover{background:#17a845}
   button:disabled{background:#555;cursor:not-allowed}
-  .back-link{display:inline-block;margin-top:16px;color:#90caf9;font-size:.85em;text-decoration:none}
-  .back-link:hover{text-decoration:underline}
   #status{display:none;margin-top:14px;padding:12px;border-radius:6px;font-size:.9em;text-align:center}
   #status.info{display:block;background:#0f3460;color:#90caf9}
   #status.ok{display:block;background:#0f3460;color:#1db954}
@@ -176,6 +266,11 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
 </style>
 </head>
 <body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+  <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+</nav>
+<div class="wrapper">
 <div class="card">
   <h1>Firmware Update</h1>
   <p class="sub">Install the latest release from GitHub</p>
@@ -183,7 +278,7 @@ static const char _UPDATE_PAGE_HTML[] PROGMEM = R"html(
   <div class="ver">Latest:  <span class="new" id="lat-ver">&mdash;</span></div>
   <div id="status"></div>
   <button id="up-btn">Install Latest Version</button>
-  <a class="back-link" href="/">&larr; Back to Configuration</a>
+</div>
 </div>
 <script>
 (function(){
@@ -259,18 +354,32 @@ static const char _UPDATE_OK_HTML[] PROGMEM = R"html(
 <meta http-equiv="refresh" content="20;url=/">
 <title>BambuTagger-Console — Update</title>
 <style>
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
-       min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .nav-links a:hover{background:#0f3460;color:#eaeaea}
+  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
   .card{background:#16213e;border-radius:12px;padding:40px 32px}
   h1{color:#1db954;font-size:2em;margin-bottom:10px}
   p{color:#8899aa}
 </style>
 </head>
 <body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+ <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+</nav>
+<div class="wrapper">
 <div class="card">
   <h1>&#10003; Update Complete!</h1>
   <p>Firmware flashed successfully. Rebooting&hellip;</p>
   <p style="margin-top:12px;font-size:.85em">Reconnecting automatically in 20 seconds&hellip;</p>
+</div>
 </div>
 </body>
 </html>
@@ -284,14 +393,27 @@ static const char _UPDATE_FAIL_HTML[] PROGMEM = R"html(
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BambuTagger-Console — Update</title>
 <style>
-  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;
-       min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#1a1a2e;color:#eaeaea;font-family:Arial,sans-serif;min-height:100vh}
+  nav{background:#16213e;padding:8px 16px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+  .nav-brand{display:flex;align-items:center;gap:8px;font-size:18px;font-weight:700;color:#90caf9}
+  .nav-brand img{width:32px;height:32px;border-radius:4px}
+  .nav-links{display:flex;gap:4px}
+  .nav-links a{padding:6px 14px;border-radius:6px;color:#8899aa;text-decoration:none;font-size:14px}
+  .nav-links a:hover{background:#0f3460;color:#eaeaea}
+  .nav-links a.active{background:#1db95433;color:#1db954;font-weight:600}
+  .wrapper{display:flex;align-items:center;justify-content:center;padding:40px 16px;text-align:center}
   .card{background:#16213e;border-radius:12px;padding:40px 32px}
   h1{color:#e74c3c;font-size:1.6em;margin-bottom:10px}
   p{color:#8899aa}
 </style>
 </head>
 <body>
+<nav>
+ <div class="nav-brand"><img src="/Logo/bambutagger.png" alt=""><span>BambuTagger Console</span></div>
+ <div class="nav-links"><a href="/">Dashboard</a><a href="/config/wifi">Settings</a><a href="/update" class="active">Firmware</a></div>
+</nav>
+<div class="wrapper">
 <div class="card">
   <h1>&#10007; Update Failed</h1>
   <p>%%MSG%%</p>
@@ -329,15 +451,12 @@ static String _portal_printer_section(int idx, const String &ip,
     return String(buf);
 }
 
-static String _portal_build_page() {
-    Preferences prefs;
-    prefs.begin("bambu_mon", true);
-
-    String ssid   = prefs.getString("wifi_ssid", "");
-    String pass   = prefs.getString("wifi_pass", "");
-    int count     = prefs.getInt("bam_count", 1);
-
-    String ip[MAX_PRINTERS], serial[MAX_PRINTERS], code[MAX_PRINTERS];
+// ── Load printer section values from NVS ─────────────────────
+static void _portal_load_printers(Preferences &prefs,
+                                  String ip[MAX_PRINTERS],
+                                  String serial[MAX_PRINTERS],
+                                  String code[MAX_PRINTERS]) {
+    int count = prefs.getInt("bam_count", 1);
     for (int i = 0; i < MAX_PRINTERS; i++) {
         char key[16];
         snprintf(key, sizeof(key), "bam_ip_%d", i);
@@ -353,17 +472,37 @@ static String _portal_build_page() {
         serial[0] = prefs.getString("bam_serial", "");
         code[0]   = prefs.getString("bam_code",   "");
     }
+}
+
+static String _portal_build_wifi_page() {
+    Preferences prefs;
+    prefs.begin("bambu_mon", true);
+    String ssid = prefs.getString("wifi_ssid", "");
+    String pass = prefs.getString("wifi_pass", "");
     prefs.end();
 
-    // Build printer sections
+    String page = FPSTR(_PORTAL_WIFI_TMPL);
+    page += FPSTR(_SETTINGS_STYLE);
+    page += FPSTR(_PORTAL_WIFI_TMPL2);
+    page.replace("%%SSID%%", ssid.length() ? "value=\"" + ssid + "\"" : "");
+    page.replace("%%PASS%%", pass.length() ? "value=\"" + pass + "\"" : "");
+    return page;
+}
+
+static String _portal_build_printers_page() {
+    Preferences prefs;
+    prefs.begin("bambu_mon", true);
+    int count = prefs.getInt("bam_count", 1);
+    String ip[MAX_PRINTERS], serial[MAX_PRINTERS], code[MAX_PRINTERS];
+    _portal_load_printers(prefs, ip, serial, code);
+    prefs.end();
+
     String printersHtml;
     for (int i = 0; i < MAX_PRINTERS; i++) {
         printersHtml += _portal_printer_section(i, ip[i], serial[i], code[i]);
     }
 
-    String page = FPSTR(_PORTAL_PAGE_TMPL);
-    page.replace("%%SSID%%",   ssid.length()   ? "value=\"" + ssid   + "\"" : "");
-    page.replace("%%PASS%%",   pass.length()   ? "value=\"" + pass   + "\"" : "");
+    String page = FPSTR(_PORTAL_PRINTERS_TMPL);
     page.replace("%%COUNT%%",  String(count));
     page.replace("%%SEL1%%",   count == 1 ? "selected" : "");
     page.replace("%%SEL2%%",   count == 2 ? "selected" : "");
@@ -371,7 +510,6 @@ static String _portal_build_page() {
     page.replace("%%SEL4%%",   count == 4 ? "selected" : "");
     page.replace("%%PRINTERS%%", printersHtml);
 
-    // Fill printer field values
     for (int i = 0; i < MAX_PRINTERS; i++) {
         char ph[16];
         snprintf(ph, sizeof(ph), "%%IP%d%%", i);
@@ -381,7 +519,6 @@ static String _portal_build_page() {
         snprintf(ph, sizeof(ph), "%%COD%d%%", i);
         page.replace(ph, code[i]);
     }
-
     return page;
 }
 
@@ -394,16 +531,6 @@ static void _portal_handle_save() {
         return;
     }
 
-    int count = _portal_server.arg("bam_count").toInt();
-    if (count < 1 || count > MAX_PRINTERS) count = 1;
-
-    // Validate at least printer 0 has an IP
-    String ip0 = _portal_server.arg("ip_0");
-    if (count > 0 && ip0.length() == 0) {
-        _portal_server.send(400, "text/plain", "Printer 1 IP is required.");
-        return;
-    }
-
     Preferences prefs;
     prefs.begin("bambu_mon", false);
 
@@ -411,20 +538,25 @@ static void _portal_handle_save() {
     prefs.putString("wifi_ssid", ssid);
     prefs.putString("wifi_pass", pass);
 
-    // Printer count + configs
-    prefs.putInt("bam_count", count);
-    for (int i = 0; i < MAX_PRINTERS; i++) {
-        char key[16];
-        snprintf(key, sizeof(key), "bam_ip_%d", i);
-        prefs.putString(key, _portal_server.arg("ip_" + String(i)));
-        snprintf(key, sizeof(key), "bam_serial_%d", i);
-        prefs.putString(key, _portal_server.arg("serial_" + String(i)));
-        snprintf(key, sizeof(key), "bam_code_%d", i);
-        prefs.putString(key, _portal_server.arg("code_" + String(i)));
+    // Printer settings — only save if the form included printer fields
+    String ip0 = _portal_server.arg("ip_0");
+    if (ip0.length() > 0) {
+        int count = _portal_server.arg("bam_count").toInt();
+        if (count < 1 || count > MAX_PRINTERS) count = 1;
+        prefs.putInt("bam_count", count);
+        for (int i = 0; i < MAX_PRINTERS; i++) {
+            char key[16];
+            snprintf(key, sizeof(key), "bam_ip_%d", i);
+            prefs.putString(key, _portal_server.arg("ip_" + String(i)));
+            snprintf(key, sizeof(key), "bam_serial_%d", i);
+            prefs.putString(key, _portal_server.arg("serial_" + String(i)));
+            snprintf(key, sizeof(key), "bam_code_%d", i);
+            prefs.putString(key, _portal_server.arg("code_" + String(i)));
+        }
     }
     prefs.end();
 
-    log_i("Portal: %d printer(s) saved — rebooting", count);
+    log_i("Portal: settings saved — rebooting");
 
     // Send response, flush TCP, then reboot
     _portal_server.send_P(200, "text/html; charset=utf-8", _PORTAL_SAVED_HTML);
@@ -622,13 +754,22 @@ static void _portal_handle_update_github() {
 }
 
 static void _portal_register_routes() {
-    _portal_server.on("/", HTTP_GET, []() {
-        String page = _portal_build_page();
+    _portal_server.on("/config", HTTP_GET, []() {
+        _portal_server.sendHeader("Location", "/config/wifi", true);
+        _portal_server.send(302, "text/html",
+            "<html><body><a href=\"/config/wifi\">WiFi Settings</a></body></html>");
+    });
+    _portal_server.on("/config/debug", HTTP_GET, []() {
+        String raw = _portal_build_wifi_page();
+        _portal_server.send(200, "text/plain; charset=utf-8", raw);
+    });
+    _portal_server.on("/config/wifi", HTTP_GET, []() {
+        String page = _portal_build_wifi_page();
         _portal_server.send(200, "text/html; charset=utf-8", page);
     });
-    _portal_server.on("/debug", HTTP_GET, []() {
-        String raw = _portal_build_page();
-        _portal_server.send(200, "text/plain; charset=utf-8", raw);
+    _portal_server.on("/config/printers", HTTP_GET, []() {
+        String page = _portal_build_printers_page();
+        _portal_server.send(200, "text/html; charset=utf-8", page);
     });
     _portal_server.on("/save", HTTP_POST, _portal_handle_save);
     _portal_server.on("/update",      HTTP_GET,  _portal_handle_update_page);
@@ -636,9 +777,15 @@ static void _portal_register_routes() {
     _portal_server.on("/api/release", HTTP_GET,  _portal_handle_api_release);
     // Captive-portal catch-all (Android / iOS auto-redirect)
     _portal_server.onNotFound([]() {
-        _portal_server.sendHeader("Location", "http://192.168.4.1/", true);
+        String loc;
+        if (WiFi.getMode() == WIFI_AP) {
+            loc = "http://192.168.4.1/config/wifi";
+        } else {
+            loc = "http://" + WiFi.localIP().toString() + "/";
+        }
+        _portal_server.sendHeader("Location", loc, true);
         _portal_server.send(302, "text/html",
-            "<html><body><a href=\"http://192.168.4.1/\">Configure</a></body></html>");
+            "<html><body><a href=\"" + loc + "\">Continue</a></body></html>");
     });
 }
 

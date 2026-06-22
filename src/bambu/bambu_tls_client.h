@@ -31,6 +31,14 @@
 #include "mbedtls/platform.h"
 #include "mbedtls/error.h"
 
+// ── PSRAM-aware mbedTLS allocator ──────────────────────────────
+// Called via mbedtls_platform_set_calloc_free() to route mbedTLS
+// heap allocations to PSRAM, preserving internal SRAM for
+// esp-aes DMA buffers.  Falls back to internal SRAM when PSRAM
+// is full.
+void *ps_mbedtls_calloc(size_t n, size_t sz);
+void  ps_mbedtls_free(void *p);
+
 class BambuTlsClient : public Stream {
 public:
     BambuTlsClient();

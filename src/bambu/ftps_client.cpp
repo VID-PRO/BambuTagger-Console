@@ -266,7 +266,10 @@ BambuTlsClient *FtpsClient::_openData(const char *retr_path) {
     if (!conn_ok) {
         log_w("FTPS data connect failed for %s", retr_path);
         delete data;
-        _drainCtrl();
+        // Send ABOR — without it the server is stuck waiting for the
+        // data connection and will ignore subsequent control commands.
+        _ctrl->print("ABOR\r\n"); _ctrl->flush();
+        _drainCtrl(2000);
         return nullptr;
     }
 
@@ -293,7 +296,8 @@ BambuTlsClient *FtpsClient::_openData(const char *retr_path) {
     if (!started) {
         log_w("FTPS no 150 for %s", retr_path);
         data->stop(); delete data;
-        _drainCtrl();
+        _ctrl->print("ABOR\r\n"); _ctrl->flush();
+        _drainCtrl(2000);
         return nullptr;
     }
 
