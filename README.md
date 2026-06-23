@@ -125,7 +125,7 @@ The web portal saves to NVS and reboots the device. After reboot the browser aut
 │ ┌────────┐   🌡 Nozzle   220°C / 220°C                  │
 │ │        │   🏠 Bed       55°C /  55°C                 │
 │ │ THUMB  │   🔄 Chamber   32°C                         │
-│ │        │                                             │
+│ │        │                                         v    │
 │ └────────┘   📋 Layers   72 / 100                      │
 │              🔄 Remaining  0h 43m                      │
 │              ▶ Speed     100%                          │
