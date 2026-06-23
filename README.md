@@ -4,6 +4,10 @@ Multi-printer touchscreen dashboard for Bambu Lab printers. Runs on the Sunton E
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/G8M220JASY)
 
+<p align="center">
+<img alt="BambuTagger" src="Pics/main.jpg" width="400">
+</p>
+
 ---
 
 ## Features
